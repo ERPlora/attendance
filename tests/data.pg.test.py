@@ -52,6 +52,8 @@ MANIFEST = json.loads((MODULE_DIR / "module.json").read_text())
 
 HUB = "hub-a"
 OTHER_HUB = "hub-b"
+# A third hub for the cases added after the main story, so they cannot shift its counts.
+THIRD_HUB = "hub-c"
 TZ = "Europe/Madrid"
 
 # Binds the runtime injects itself, always present and typed TEXT (`system_params`).
@@ -220,7 +222,11 @@ def run_command(
     body = ";\n".join(bind_literals(statement(rel), params) for rel in spec["sql"])
     body = shim(body)
 
-    out = psql(["-f", "-"], db=DB, stdin=f"BEGIN;\n{body};\nROLLBACK;\n")
+    try:
+        out = psql(["-f", "-"], db=DB, stdin=f"BEGIN;\n{body};\nROLLBACK;\n")
+    except RuntimeError as exc:
+        # Postgres refused a statement: in the runtime that is a 500, never a domain answer.
+        return False, f"500: {exc}"
     counts = _counts(out)
     gate = spec.get("expect_rows")
     if gate:
@@ -763,7 +769,7 @@ try:
         == [["needs_review"]],
         "hub-b's day is flagged with hub-b's 1 h threshold",
     )
-    # A manager closes a needs_review day with a correction, and its running break is closed too.
+    # A manager closes a needs_review day with a correction.
     bea_a_id = rows(
         f"SELECT id FROM attendance_record WHERE hub_id = '{HUB}' AND user_id = 'bea'"
     )[0][0]
@@ -788,7 +794,8 @@ try:
     bea_b_id = rows(
         f"SELECT id FROM attendance_record WHERE hub_id = '{OTHER_HUB}' AND user_id = 'bea'"
     )[0][0]
-    ok, _ = run_command(
+    # bea's hub-b day still has the break she started at T0+10, AFTER the clock-out set here.
+    ok, code = run_command(
         "attendance.records.correct",
         {
             "record_id": bea_b_id,
@@ -800,11 +807,96 @@ try:
         "boss-b",
         at(800),
     )
+    check(ok, f"hub-b's manager closes bea's needs_review day, got {code}")
     check(
         rows(f"SELECT ended_at FROM attendance_break WHERE record_id = '{bea_b_id}'")
         == [[at(10)]],
         "a break that started after the corrected clock-out is closed at its own start",
     )
+
+
+    # --- hub-c · break_end and clock_out only ever touch the CALLER's break --------------------
+    for person in ("gil", "hugo"):
+        ok, code = run_command("attendance.clock_in", {"source": "shared"}, THIRD_HUB, person, T0)
+        check(ok, f"{person} clocks in at hub-c, got {code}")
+        ok, code = run_command("attendance.break_start", {}, THIRD_HUB, person, at(20))
+        check(ok, f"{person} starts a break at hub-c, got {code}")
+
+    def hugo_state() -> list[list[str]]:
+        return rows(
+            "SELECT r.status, b.ended_at IS NULL FROM attendance_record r "
+            "JOIN attendance_break b ON b.record_id = r.id AND b.hub_id = r.hub_id "
+            f"WHERE r.hub_id = '{THIRD_HUB}' AND r.user_id = 'hugo'"
+        )
+
+    ok, code = run_command("attendance.break_end", {}, THIRD_HUB, "gil", at(30))
+    check(ok, f"gil ends his break, got {code}")
+    check(hugo_state() == [["open", "t"]],
+          f"gil's break_end must leave hugo's break running and his day open, got {hugo_state()}")
+    ok, code = run_command("attendance.break_start", {}, THIRD_HUB, "gil", at(40))
+    check(ok, f"gil starts a second break, so his clock_out has a break to end first, got {code}")
+    ok, code = run_command("attendance.clock_out", {}, THIRD_HUB, "gil", at(50))
+    check(ok, f"gil clocks out with a break running, got {code}")
+    check(hugo_state() == [["open", "t"]],
+          f"gil's clock_out (which ends a break first) must leave hugo's break running and his day "
+          f"open, got {hugo_state()}")
+
+    # --- hub-c · a correction closes the break left running at the NEW clock-out --------------
+    hugo_id = rows(f"SELECT id FROM attendance_record WHERE hub_id = '{THIRD_HUB}' AND user_id = 'hugo'")[0][0]
+    ok, code = run_command(
+        "attendance.records.correct",
+        {"record_id": hugo_id, "clock_in_at": at(0), "clock_out_at": at(90), "reason": "Left without clocking out"},
+        THIRD_HUB, "boss-c", at(500),
+    )
+    check(ok, f"the correction of hugo's day is applied, got {code}")
+    check(rows(f"SELECT ended_at FROM attendance_break WHERE record_id = '{hugo_id}'") == [[at(90)]],
+          "a break running inside the corrected day is closed at the new clock-out")
+    check(rows(f"SELECT status FROM attendance_record WHERE id = '{hugo_id}'") == [["closed"]],
+          "the corrected day is closed")
+
+    # --- hub-c · correction timestamps: UTC `Z` only, stored verbatim --------------------------
+    # The list engine sorts and range-filters clock_in_at as TEXT, and every row the runtime
+    # writes holds `:now` in UTC (`…+00:00` with nanoseconds, not `…Z`). Both forms are UTC, so
+    # they order correctly to the second. A `+02:00` value would sort and filter in the wrong
+    # place, so the schema accepts exactly what `Date.prototype.toISOString()` sends.
+    correct_schema = json.loads((MODULE_DIR / MANIFEST["commands"]["attendance.records.correct"]["schema"]).read_text())
+    for field_name in ("clock_in_at", "clock_out_at"):
+        pattern = correct_schema["properties"][field_name]["pattern"]
+        for value, accepted in (
+            ("2026-10-06T08:00:00.000Z", True),
+            ("2026-10-06T08:00:00Z", True),
+            ("2026-10-06T10:00:00+02:00", False),
+            ("2026-10-06T08:00:00-00:00", False),
+            ("2026-10-06T08:00Z", False),
+            ("2026-10-06 08:00:00Z", False),
+        ):
+            check(bool(re.search(pattern, value)) == accepted,
+                  f"record_correct schema `{field_name}` must {'accept' if accepted else 'reject'} {value!r}")
+    ok, code = run_command(
+        "attendance.records.correct",
+        {"record_id": hugo_id, "clock_in_at": "2026-10-06T07:45:00.000Z",
+         "clock_out_at": "2026-10-06T09:30:00.000Z", "reason": "Exact times from the shift sheet"},
+        THIRD_HUB, "boss-c", at(510),
+    )
+    check(ok, f"a toISOString() correction is applied, got {code}")
+    stored = rows(f"SELECT clock_in_at, clock_out_at FROM attendance_record WHERE id = '{hugo_id}'")
+    check(stored == [["2026-10-06T07:45:00.000Z", "2026-10-06T09:30:00.000Z"]],
+          f"the UTC values are stored verbatim, got {stored}")
+
+    # An impossible date passes a regex but not Postgres: it must be a domain refusal, not a 500.
+    trail_before = rows(f"SELECT COUNT(*) FROM attendance_correction WHERE record_id = '{hugo_id}'")
+    for bad_in, bad_out in (("2026-13-45T10:00:00Z", "2026-10-06T18:00:00Z"),
+                            ("2026-10-06T08:00:00Z", "2026-02-30T18:00:00Z"),
+                            ("2026-02-30T08:00:00Z", None)):
+        ok, code = run_command(
+            "attendance.records.correct",
+            {"record_id": hugo_id, "clock_in_at": bad_in, "clock_out_at": bad_out, "reason": "Typo in the date"},
+            THIRD_HUB, "boss-c", at(520),
+        )
+        check(not ok and code == "attendance.record_not_found",
+              f"impossible date ({bad_in}, {bad_out}) must answer attendance.record_not_found, got ok={ok} code={code}")
+    check(rows(f"SELECT COUNT(*) FROM attendance_correction WHERE record_id = '{hugo_id}'") == trail_before,
+          "an impossible date leaves no trail row")
 
     # --- settings: created on first save, then updated in place --------------------------------
     settings = query("attendance.settings.get", {}, HUB)
