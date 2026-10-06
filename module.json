@@ -1,41 +1,57 @@
 {
   "id": "attendance",
-  "name": "Attendance",
+  "name": "Time clock",
+  "description": "Time clock for employees: clock in and out with one tap, breaks, a legal working-day record (Spain, art. 34.9 ET) with a correction trail, and an optional workplace radius for personal devices.",
   "version": "0.1.0",
   "agent": {
-    "description": "Módulo attendance.",
+    "description": "Clock employees in and out, start and end breaks, list working-day records, see who is clocked in now, and correct a record with a mandatory reason.",
     "keywords": [
+      "fichar",
+      "fichaje",
+      "control horario",
+      "registro de jornada",
+      "time clock",
       "attendance",
-      "items"
+      "clock in",
+      "clock out",
+      "jornada"
     ]
   },
   "depends_on": [],
   "permissions": [
-    "attendance.view_item",
-    "attendance.add_item",
-    "attendance.change_item",
-    "attendance.delete_item"
+    "attendance.clock",
+    "attendance.view_all",
+    "attendance.correct",
+    "attendance.manage_settings"
   ],
   "role_permissions": {
     "admin": [
       "*"
     ],
     "manager": [
-      "attendance.view_item",
-      "attendance.add_item",
-      "attendance.change_item",
-      "attendance.delete_item"
+      "attendance.clock",
+      "attendance.view_all",
+      "attendance.correct",
+      "attendance.manage_settings"
     ],
     "employee": [
-      "attendance.view_item"
+      "attendance.clock"
     ]
   },
   "navigation": [
     {
-      "id": "items",
-      "label": "Items",
-      "icon": "list",
-      "component": "erp-attendance-items"
+      "id": "clock",
+      "label": "Clock in",
+      "icon": "time-outline",
+      "component": "erp-attendance-clock",
+      "permission": "attendance.clock"
+    },
+    {
+      "id": "records",
+      "label": "Records",
+      "icon": "list-outline",
+      "component": "erp-attendance-records",
+      "permission": "attendance.clock"
     }
   ],
   "migrations": {
@@ -44,55 +60,331 @@
     ]
   },
   "queries": {
-    "attendance.items.list": {
-      "permission": "attendance.view_item",
-      "sql": "queries/items_list.sql",
+    "attendance.settings.get": {
+      "permission": "attendance.clock",
+      "sql": "queries/settings_get.sql",
+      "ai": {
+        "description": "Time clock settings of the business: whether location is required on personal devices, the allowed radius, the workplace coordinates and after how many hours an open day is flagged for review. No row means the defaults."
+      }
+    },
+    "attendance.records.mine_open": {
+      "permission": "attendance.clock",
+      "sql": "queries/records_mine_open.sql",
+      "ai": {
+        "description": "The current user's open working day, if they are clocked in, with the running break if any."
+      }
+    },
+    "attendance.records.mine": {
+      "permission": "attendance.clock",
+      "sql": "queries/records_mine.sql",
       "list": {
-        "search": [
-          "name",
-          "code"
-        ],
         "sort": [
-          "name",
-          "code",
-          "amount",
-          "created_at"
+          "clock_in_at",
+          "clock_out_at",
+          "status"
         ],
-        "default_sort": "name",
-        "default_dir": "asc",
+        "default_sort": "clock_in_at",
+        "default_dir": "desc",
         "filters": {
-          "amount": {
+          "clock_in_at": {
             "op": "range"
+          },
+          "status": {
+            "op": "eq"
           }
         },
         "page_size": 50
       },
       "ai": {
-        "description": "Lista los items del módulo attendance."
+        "description": "The current user's working days (clock-in, clock-out, status, local date, breaks)."
       }
     },
-    "attendance.items.get": {
-      "permission": "attendance.view_item",
-      "sql": "queries/items_get.sql",
+    "attendance.records.list": {
+      "permission": "attendance.view_all",
+      "sql": "queries/records_list.sql",
+      "list": {
+        "sort": [
+          "clock_in_at",
+          "clock_out_at",
+          "status"
+        ],
+        "default_sort": "clock_in_at",
+        "default_dir": "desc",
+        "filters": {
+          "clock_in_at": {
+            "op": "range"
+          },
+          "status": {
+            "op": "eq"
+          },
+          "user_id": {
+            "op": "eq"
+          }
+        },
+        "page_size": 50
+      },
       "ai": {
-        "description": "Detalle de un item por id."
+        "description": "Working days of every employee of the business, filterable by person, date range and status (open, closed, needs_review)."
+      }
+    },
+    "attendance.records.get": {
+      "permission": "attendance.view_all",
+      "sql": "queries/records_get.sql"
+    },
+    "attendance.breaks.mine": {
+      "permission": "attendance.clock",
+      "sql": "queries/breaks_mine.sql",
+      "list": {
+        "sort": [
+          "started_at"
+        ],
+        "default_sort": "started_at",
+        "default_dir": "desc",
+        "filters": {
+          "started_at": {
+            "op": "range"
+          },
+          "record_id": {
+            "op": "eq"
+          }
+        },
+        "page_size": 500
+      }
+    },
+    "attendance.breaks.list": {
+      "permission": "attendance.view_all",
+      "sql": "queries/breaks_list.sql",
+      "list": {
+        "sort": [
+          "started_at"
+        ],
+        "default_sort": "started_at",
+        "default_dir": "desc",
+        "filters": {
+          "started_at": {
+            "op": "range"
+          },
+          "record_id": {
+            "op": "eq"
+          }
+        },
+        "page_size": 500
+      }
+    },
+    "attendance.corrections.list": {
+      "permission": "attendance.view_all",
+      "sql": "queries/corrections_list.sql",
+      "list": {
+        "sort": [
+          "created_at"
+        ],
+        "default_sort": "created_at",
+        "default_dir": "desc",
+        "filters": {
+          "record_id": {
+            "op": "eq"
+          }
+        },
+        "page_size": 200
+      },
+      "ai": {
+        "description": "Trail of corrections made to working days: old and new times, the reason, who and when."
+      }
+    },
+    "attendance.presence.count": {
+      "permission": "attendance.view_all",
+      "sql": "queries/presence_count.sql",
+      "ai": {
+        "description": "How many employees are clocked in right now."
       }
     }
   },
   "commands": {
-    "attendance.items.create": {
-      "permission": "attendance.add_item",
+    "attendance.clock_in": {
+      "permission": "attendance.clock",
       "transaction": true,
       "sql": [
-        "commands/items_create.sql"
+        "commands/clock_in.sql"
       ],
+      "schema": "schemas/clock_in.json",
+      "expect_rows": {
+        "op": "min",
+        "n": 1,
+        "error": "attendance.clock_in_rejected",
+        "message": "Could not clock in: there is already an open working day, or the device is outside the allowed radius."
+      },
       "emit": [
-        "attendance.item.created"
+        "attendance.clocked_in"
+      ]
+    },
+    "attendance.clock_out": {
+      "permission": "attendance.clock",
+      "transaction": true,
+      "sql": [
+        "commands/break_end.sql",
+        "commands/clock_out.sql"
       ],
-      "ai": {
-        "description": "Crea un item en attendance."
+      "schema": "schemas/clock_out.json",
+      "expect_rows": {
+        "op": "min",
+        "n": 1,
+        "error": "attendance.no_open_record",
+        "statement": "commands/clock_out.sql",
+        "message": "There is no open working day to clock out of."
+      },
+      "emit": [
+        "attendance.clocked_out"
+      ]
+    },
+    "attendance.break_start": {
+      "permission": "attendance.clock",
+      "transaction": true,
+      "sql": [
+        "commands/break_start.sql"
+      ],
+      "schema": "schemas/empty.json",
+      "expect_rows": {
+        "op": "min",
+        "n": 1,
+        "error": "attendance.break_rejected",
+        "message": "Could not start a break: there is no open working day or a break is already running."
+      },
+      "emit": [
+        "attendance.break.started"
+      ]
+    },
+    "attendance.break_end": {
+      "permission": "attendance.clock",
+      "transaction": true,
+      "sql": [
+        "commands/break_end.sql"
+      ],
+      "schema": "schemas/empty.json",
+      "expect_rows": {
+        "op": "min",
+        "n": 1,
+        "error": "attendance.no_open_break",
+        "message": "There is no running break to end."
+      },
+      "emit": [
+        "attendance.break.ended"
+      ]
+    },
+    "attendance.records.correct": {
+      "permission": "attendance.correct",
+      "transaction": true,
+      "sql": [
+        "commands/record_correct_log.sql",
+        "commands/record_correct.sql",
+        "commands/_record_correct_close_break.sql"
+      ],
+      "schema": "schemas/record_correct.json",
+      "expect_rows": {
+        "op": "min",
+        "n": 1,
+        "error": "attendance.record_not_found",
+        "statement": "commands/record_correct_log.sql",
+        "message": "The working day could not be corrected: it does not exist in this business, the clock-out is not after the clock-in, or reopening it would leave the person with two open days."
+      },
+      "emit": [
+        "attendance.record.corrected"
+      ]
+    },
+    "attendance.settings.update": {
+      "permission": "attendance.manage_settings",
+      "transaction": true,
+      "sql": [
+        "commands/_settings_ensure.sql",
+        "commands/settings_update.sql"
+      ],
+      "schema": "schemas/settings_update.json",
+      "expect_rows": {
+        "op": "min",
+        "n": 1,
+        "error": "attendance.settings_not_saved",
+        "statement": "commands/settings_update.sql",
+        "message": "The time clock settings could not be saved for this business."
+      },
+      "emit": [
+        "attendance.settings.updated"
+      ]
+    },
+    "attendance._auto_review_stale": {
+      "permission": "attendance.clock",
+      "transaction": true,
+      "sql": [
+        "commands/_auto_review_stale.sql"
+      ],
+      "schema": "schemas/empty.json",
+      "emit": [
+        "attendance.record.needs_review"
+      ]
+    }
+  },
+  "events": {
+    "emits": [
+      "attendance.clocked_in",
+      "attendance.clocked_out",
+      "attendance.break.started",
+      "attendance.break.ended",
+      "attendance.record.corrected",
+      "attendance.record.needs_review",
+      "attendance.settings.updated"
+    ]
+  },
+  "scheduled_tasks": [
+    {
+      "name": "auto_review_stale",
+      "command": "attendance._auto_review_stale",
+      "cron": "*/15 * * * *",
+      "catch_up": "collapse"
+    }
+  ],
+  "settings": {
+    "title": "Time clock",
+    "icon": "time-outline",
+    "schema": "schemas/settings_update.json",
+    "get": "attendance.settings.get",
+    "set": "attendance.settings.update",
+    "component": "erp-attendance-settings"
+  },
+  "widgets": {
+    "attendance.clocked_in_now": {
+      "title": "Clocked in now",
+      "icon": "time-outline",
+      "size": "sm",
+      "permission": "attendance.view_all",
+      "sectors": [
+        "hosteleria",
+        "retail",
+        "belleza",
+        "rrhh",
+        "general"
+      ],
+      "default": true,
+      "kind": "kpi",
+      "query": "attendance.presence.count",
+      "refresh_on": [
+        "attendance.clocked_in",
+        "attendance.clocked_out"
+      ],
+      "map": {
+        "value": "value"
+      },
+      "options": {
+        "label": "Clocked in now",
+        "icon": "time-outline",
+        "format": "number"
       }
     }
+  },
+  "errors": {
+    "attendance.clock_in_rejected": {},
+    "attendance.no_open_record": {},
+    "attendance.break_rejected": {},
+    "attendance.no_open_break": {},
+    "attendance.record_not_found": {},
+    "attendance.settings_not_saved": {}
   },
   "ui": {
     "entry": "dist/attendance.esm.js"

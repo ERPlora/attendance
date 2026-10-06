@@ -3,5 +3,5 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Módulo attendance de ERPlora (manifest declarativo + Web Component Lit). Se compila con el toolkit."
+  "description": "ERPlora time clock module (registro de jornada): declarative manifest + Lit Web Components, built with the toolkit."
 }

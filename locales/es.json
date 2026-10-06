@@ -1,20 +1,61 @@
 {
-  "name": "Attendance",
+  "name": "Control horario",
+  "description": "Registro de jornada para empleados: fichar la entrada y la salida con un toque, pausas, un registro legal de la jornada (art. 34.9 ET) con rastro de correcciones y un radio opcional del lugar de trabajo para los dispositivos personales.",
   "navigation": {
-    "items": {
-      "label": "Items"
+    "clock": {
+      "label": "Fichar"
+    },
+    "records": {
+      "label": "Registros"
     }
   },
+  "settings": {
+    "title": "Control horario",
+    "fields": {
+      "require_location": {
+        "label": "Pedir la ubicación al fichar desde un dispositivo personal",
+        "description": "Al TPV del mostrador (dispositivo compartido) nunca se le pide la ubicación."
+      },
+      "geofence_radius_m": {
+        "label": "Radio permitido (metros)",
+        "description": "A qué distancia del lugar de trabajo puede fichar un dispositivo personal."
+      },
+      "workplace_lat": {
+        "label": "Latitud del lugar de trabajo",
+        "description": "Déjala vacía hasta fijar la ubicación del lugar de trabajo."
+      },
+      "workplace_lng": {
+        "label": "Longitud del lugar de trabajo",
+        "description": "Déjala vacía hasta fijar la ubicación del lugar de trabajo."
+      },
+      "auto_close_after_hours": {
+        "label": "Marcar para revisar las jornadas abiertas tras (horas)",
+        "description": "Una jornada que sigue abierta pasadas estas horas se marca para revisar."
+      }
+    }
+  },
+  "widgets": {
+    "attendance.clocked_in_now": {
+      "title": "Fichados ahora",
+      "label": "Fichados ahora"
+    }
+  },
+  "errors": {
+    "attendance.clock_in_rejected": "No se ha podido fichar la entrada: ya tienes una jornada abierta o este dispositivo está fuera del radio permitido.",
+    "attendance.no_open_record": "No hay ninguna jornada abierta de la que fichar la salida.",
+    "attendance.break_rejected": "No se ha podido empezar la pausa: no hay jornada abierta o ya hay una pausa en curso.",
+    "attendance.no_open_break": "No hay ninguna pausa en curso que terminar.",
+    "attendance.record_not_found": "No se ha podido corregir la jornada: no existe, la salida no es posterior a la entrada o reabrirla dejaría a la persona con dos jornadas abiertas.",
+    "attendance.settings_not_saved": "No se han podido guardar los ajustes del control horario. Vuelve a intentarlo en un momento."
+  },
   "ui": {
-    "colName": "Nombre",
-    "colCode": "Código",
-    "colAmount": "Importe",
-    "searchPlaceholder": "Buscar…",
-    "loading": "Cargando…",
-    "empty": "Todavía no hay registros.",
-    "save": "Guardar",
-    "saving": "Guardando…",
-    "createFailed": "No se pudo guardar. Revisa los datos y vuelve a intentarlo.",
-    "loadFailed": "No se pudo cargar la lista. Vuelve a intentarlo en un momento."
+    "clock": {
+    },
+    "records": {
+    },
+    "settings": {
+    },
+    "common": {
+    }
   }
 }

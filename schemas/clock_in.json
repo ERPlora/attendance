@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "attendance.clock_in",
+  "description": "Clock in the session user. `source` is the mode of the device that clocks in: `shared` (the counter POS) or `personal` (the worker's own phone or laptop). When the hub requires location, a `personal` device is only accepted with `within_radius = 1`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source"
+  ],
+  "properties": {
+    "source": {
+      "type": "string",
+      "enum": [
+        "shared",
+        "personal"
+      ],
+      "description": "Device mode as answered by GET /api/device/mode."
+    },
+    "lat": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": -90,
+      "maximum": 90,
+      "description": "Latitude of the device when clocking in. Null when location is not required."
+    },
+    "lng": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": -180,
+      "maximum": 180,
+      "description": "Longitude of the device when clocking in. Null when location is not required."
+    },
+    "accuracy_m": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Accuracy of the position reported by the device, in metres."
+    },
+    "distance_m": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Distance to the workplace measured by the client (Haversine), in metres."
+    },
+    "within_radius": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "enum": [
+        0,
+        1,
+        null
+      ],
+      "description": "1 when the client measured the device inside the workplace radius, 0 outside, null when not measured."
+    }
+  }
+}

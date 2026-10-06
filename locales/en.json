@@ -1,20 +1,61 @@
 {
-  "name": "Attendance",
+  "name": "Time clock",
+  "description": "Time clock for employees: clock in and out with one tap, breaks, a legal working-day record (Spain, art. 34.9 ET) with a correction trail, and an optional workplace radius for personal devices.",
   "navigation": {
-    "items": {
-      "label": "Items"
+    "clock": {
+      "label": "Clock in"
+    },
+    "records": {
+      "label": "Records"
     }
   },
+  "settings": {
+    "title": "Time clock",
+    "fields": {
+      "require_location": {
+        "label": "Require location when clocking in from a personal device",
+        "description": "The counter POS (shared device) is never asked for a location."
+      },
+      "geofence_radius_m": {
+        "label": "Allowed radius (metres)",
+        "description": "How far from the workplace a personal device may clock in."
+      },
+      "workplace_lat": {
+        "label": "Workplace latitude",
+        "description": "Leave empty until the workplace location is set."
+      },
+      "workplace_lng": {
+        "label": "Workplace longitude",
+        "description": "Leave empty until the workplace location is set."
+      },
+      "auto_close_after_hours": {
+        "label": "Flag open days for review after (hours)",
+        "description": "A working day still open after this many hours is marked for review."
+      }
+    }
+  },
+  "widgets": {
+    "attendance.clocked_in_now": {
+      "title": "Clocked in now",
+      "label": "Clocked in now"
+    }
+  },
+  "errors": {
+    "attendance.clock_in_rejected": "Could not clock in: you already have an open working day, or this device is outside the allowed radius.",
+    "attendance.no_open_record": "There is no open working day to clock out of.",
+    "attendance.break_rejected": "Could not start a break: there is no open working day or a break is already running.",
+    "attendance.no_open_break": "There is no running break to end.",
+    "attendance.record_not_found": "The working day could not be corrected: it does not exist, the clock-out is not after the clock-in, or reopening it would leave the person with two open days.",
+    "attendance.settings_not_saved": "The time clock settings could not be saved. Try again in a moment."
+  },
   "ui": {
-    "colName": "Name",
-    "colCode": "Code",
-    "colAmount": "Amount",
-    "searchPlaceholder": "Search…",
-    "loading": "Loading…",
-    "empty": "No records yet.",
-    "save": "Save",
-    "saving": "Saving…",
-    "createFailed": "Could not save. Check the data and try again.",
-    "loadFailed": "Could not load the list. Try again in a moment."
+    "clock": {
+    },
+    "records": {
+    },
+    "settings": {
+    },
+    "common": {
+    }
   }
 }
