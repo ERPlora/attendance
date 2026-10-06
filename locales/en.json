@@ -1,0 +1,20 @@
+{
+  "name": "Attendance",
+  "navigation": {
+    "items": {
+      "label": "Items"
+    }
+  },
+  "ui": {
+    "colName": "Name",
+    "colCode": "Code",
+    "colAmount": "Amount",
+    "searchPlaceholder": "Search…",
+    "loading": "Loading…",
+    "empty": "No records yet.",
+    "save": "Save",
+    "saving": "Saving…",
+    "createFailed": "Could not save. Check the data and try again.",
+    "loadFailed": "Could not load the list. Try again in a moment."
+  }
+}

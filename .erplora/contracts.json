@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "module": "attendance",
+  "consumes": {
+    "queries": [
+      "attendance.items.list"
+    ],
+    "optional_queries": [],
+    "commands": [
+      "attendance.items.create"
+    ],
+    "events": [],
+    "slots": []
+  }
+}
