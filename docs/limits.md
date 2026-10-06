@@ -13,6 +13,13 @@
   position. The device mode (shared / personal) is also reported by the client.
 - **No automatic purge after four years.** Records are kept; nothing is archived or deleted yet.
 - **No pay or overtime.** Hours are not crossed with rates or contracts.
+- **A correction only touches the break left running.** When a correction sets a clock-out, a
+  break still running in that day is closed at the new clock-out (or at its own start if it began
+  later). Breaks that already ended are left as they were, even if they end after the new
+  clock-out or start before the new clock-in: check and adjust the times so they fit.
+- **Correction times are UTC.** A correction is sent as UTC (`2026-10-06T08:00:00.000Z`, what the
+  screen sends); a time with an offset (`+02:00`) is refused. The screen converts the local time
+  you type into UTC before sending.
 - **A forgotten clock-out is flagged, not guessed.** The day becomes **needs review**; no
   clock-out time is invented. A manager sets it with a correction.
 

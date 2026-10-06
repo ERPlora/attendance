@@ -48,6 +48,11 @@ device reports, as Square and Factorial do: the GPS is the device's anyway.
 
 ## Durations
 
+Every timestamp is stored as UTC text: the Hub writes clock-ins, clock-outs and breaks as
+`…+00:00`, and a correction is accepted only in UTC `…Z` form. Because they are all UTC, sorting and
+date-range filters on the text are in time order. A correction with an impossible date
+(`2026-02-30`) is refused like any other invalid correction.
+
 Queries return timestamps (RFC 3339, UTC) plus two helpers per working day:
 
 - `local_date` — the business calendar day of the clock-in, read in the Hub's timezone (a clock-in

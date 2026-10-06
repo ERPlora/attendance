@@ -3,8 +3,12 @@
 -- The guard is anchored HERE: 0 rows answer attendance.record_not_found and roll back the whole
 -- command. It inserts nothing when:
 --   * the record does not exist in this hub (or is deleted),
---   * the new clock-out is not after the new clock-in (the UI checks first and shows
---     attendance.invalid_correction, this is the safety net),
+--   * a new time is not a real date (2026-13-45, 2026-02-30). The schema pattern only checks
+--     the SHAPE, and casting an impossible date is a Postgres error, a 500. The CASE checks it
+--     with pg_input_is_valid BEFORE any cast: a CASE evaluates its branches in order, an AND does
+--     not promise to,
+--   * the new clock-out is not after the new clock-in (the UI checks first and shows its local
+--     string ui.records.invalidCorrection, this is the safety net),
 --   * the correction would REOPEN the day (no clock-out) while the same person already has
 --     another open day: the one-open-day index would otherwise turn it into a 500.
 INSERT INTO attendance_correction
@@ -22,8 +26,12 @@ FROM attendance_record r
 WHERE r.hub_id = :hub_id
   AND r.id = CAST(:record_id AS TEXT)
   AND r.is_deleted = 0
-  AND (CAST(:clock_out_at AS TEXT) IS NULL
-       OR erp_dt(CAST(:clock_out_at AS TEXT)) > erp_dt(CAST(:clock_in_at AS TEXT)))
+  AND CASE
+        WHEN NOT pg_input_is_valid(CAST(:clock_in_at AS TEXT), 'timestamptz') THEN FALSE
+        WHEN CAST(:clock_out_at AS TEXT) IS NULL THEN TRUE
+        WHEN NOT pg_input_is_valid(CAST(:clock_out_at AS TEXT), 'timestamptz') THEN FALSE
+        ELSE erp_dt(CAST(:clock_out_at AS TEXT)) > erp_dt(CAST(:clock_in_at AS TEXT))
+      END
   AND (CAST(:clock_out_at AS TEXT) IS NOT NULL
        OR NOT EXISTS (
             SELECT 1
