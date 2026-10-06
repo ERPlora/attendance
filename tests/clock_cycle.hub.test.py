@@ -191,6 +191,14 @@ def test_correction_trail(hub: Hub, record_id: str) -> None:
         },
         "attendance.record_not_found",
     )
+    # Every row the runtime writes holds `:now` in UTC `…Z` and the list engine sorts and filters
+    # clock_in_at as TEXT: an offset value is refused by the payload schema before any SQL runs.
+    status, body = hub.command(
+        "attendance.records.correct",
+        {"record_id": record_id, "clock_in_at": "2026-10-06T10:00:00+02:00",
+         "clock_out_at": "2026-10-06T18:00:00+02:00", "reason": "Local offset"},
+    )
+    hub.check("a correction with a +02:00 offset is refused by the schema (HTTP)", status, 422)
     hub.check(
         "the refused correction left no trail",
         hub.query("attendance.corrections.list", {"f_record_id": record_id}),
