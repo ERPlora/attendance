@@ -2,7 +2,7 @@
 // breaks. Closed breaks come summed by the server (`breaks_closed_minutes`); the running break is
 // added live from the breaks query.
 import { describe, expect, it } from 'vitest';
-import { breakMinutes, formatHm, workedMinutes } from './minutes';
+import { breakMinutes, formatHm, runningBreaksFrom, workedMinutes } from './minutes';
 
 const closed = {
   id: 'rec-101',
@@ -76,5 +76,23 @@ describe('formatHm', () => {
     expect(formatHm(452)).toBe('7:32');
     expect(formatHm(0)).toBe('0:00');
     expect(formatHm(605)).toBe('10:05');
+  });
+});
+
+describe('runningBreaksFrom', () => {
+  it('picks the earliest open clock-in by instant, not by text (runtime `+00:00` vs corrected `Z`)', () => {
+    const rows = [
+      { ...open, id: 'a', clock_in_at: '2026-10-06T08:00:00.123456789+00:00' },
+      // As text `.` sorts before `Z`, so the two forms of the same second do not order by instant.
+      { ...open, id: 'b', clock_in_at: '2026-10-06T07:59:59Z' },
+      { ...open, id: 'c', clock_in_at: '2026-10-06T07:59:59.500000000+00:00' },
+      { ...closed, id: 'd', clock_in_at: '2026-10-01T06:00:00Z' },
+    ];
+    // Suffix-less, floored to the second: sorts before every stored form of that second.
+    expect(runningBreaksFrom(rows)).toBe('2026-10-06T07:59:59');
+  });
+
+  it('is null without open days', () => {
+    expect(runningBreaksFrom([closed])).toBeNull();
   });
 });

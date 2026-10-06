@@ -56,3 +56,20 @@ export function formatHm(minutes: number): string {
   const m = Math.max(0, Math.floor(minutes));
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
 }
+
+/**
+ * Lower bound of the `started_at` filter that brings the running breaks of the open days in `rows`:
+ * a break always starts after its day's clock-in, so the earliest open clock-in covers them all.
+ * Chosen by INSTANT (stored values mix the runtime's `…+00:00` with nanoseconds and the `…Z` of a
+ * correction), and written without suffix, floored to the second, so the server's text comparison
+ * keeps every stored form of that second. `null` when no day is open.
+ */
+export function runningBreaksFrom(rows: readonly RecordTimes[]): string | null {
+  let earliest = Infinity;
+  for (const r of rows) {
+    if (r.status !== 'open') continue;
+    const ms = Date.parse(r.clock_in_at);
+    if (Number.isFinite(ms) && ms < earliest) earliest = ms;
+  }
+  return Number.isFinite(earliest) ? new Date(earliest).toISOString().slice(0, 19) : null;
+}

@@ -70,6 +70,11 @@ describe('datetime-local inputs in the business zone', () => {
     expect(fromLocalInput('2026-11-02T09:00', 'UTC')).toBe('2026-11-02T09:00:00.000Z');
   });
 
+  it('answers the only shape attendance.records.correct accepts: UTC with seconds and a trailing Z', () => {
+    const iso = fromLocalInput('2026-10-05T09:00', 'Europe/Madrid');
+    expect(iso).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
+  });
+
   it('refuses what is not a date and time', () => {
     expect(fromLocalInput('', 'Europe/Madrid')).toBeNull();
     expect(fromLocalInput('tomorrow', 'Europe/Madrid')).toBeNull();
