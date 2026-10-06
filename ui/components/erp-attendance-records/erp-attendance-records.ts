@@ -144,8 +144,6 @@ export class ErpAttendanceRecords extends LitElement {
     .err { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .25rem 0 .75rem;
       color: var(--ion-color-danger, #c5000f); font-weight: 600; }
     .err ion-button { --color: var(--ion-color-danger, #c5000f); --border-color: var(--ion-color-danger, #c5000f); }
-    .actions { display: flex; gap: .25rem; }
-    .radius { display: inline-flex; gap: .25rem; font-size: 1.1rem; }
   `;
 
   @state() private month = '';
@@ -295,7 +293,9 @@ export class ErpAttendanceRecords extends LitElement {
     if (!iso) return '—';
     const tz = this.timezone;
     const d = localDate(iso, tz);
-    return d === day ? localTime(iso, tz) : `${localTime(iso, tz)} (${this.shortDate(d)})`;
+    if (d === day) return localTime(iso, tz);
+    const [, m, dd] = d.split('-');
+    return `${localTime(iso, tz)} (${dd}/${m})`;
   }
 
   private statusLabel(status: string | null | undefined): string {
@@ -358,7 +358,9 @@ export class ErpAttendanceRecords extends LitElement {
           const worked = workedMinutes(row(r), this.runningBreaks, this.now);
           if (worked === null) return '—';
           return row(r).status === 'open'
-            ? html`${formatHm(worked)} ${this.badge(this.t('ui.records.inProgress'), 'primary')}`
+            ? html`<span style="display: inline-flex; align-items: center; gap: .375rem; flex-wrap: wrap; justify-content: flex-end"
+                >${formatHm(worked)} ${this.badge(this.t('ui.records.inProgress'), 'primary')}</span
+              >`
             : formatHm(worked);
         },
       },
@@ -376,7 +378,7 @@ export class ErpAttendanceRecords extends LitElement {
           if (rec.in_within_radius == null && rec.out_within_radius == null) {
             return html`<span title=${this.t('ui.records.noLocation')}>—</span>`;
           }
-          return html`<span class="radius"
+          return html`<span style="display: inline-flex; gap: .25rem; font-size: 1.1rem"
             >${this.radiusIcon(rec.in_within_radius, this.t('ui.records.radiusInInside'), this.t('ui.records.radiusInOutside'))}${this.radiusIcon(
               rec.out_within_radius,
               this.t('ui.records.radiusOutInside'),
@@ -391,6 +393,8 @@ export class ErpAttendanceRecords extends LitElement {
         key: 'actions',
         header: this.t('ui.records.colActions'),
         pinned: 'end',
+        // Room for both labelled buttons: without it the pinned cell clips «Correct» out of sight.
+        width: this.canCorrect ? '15rem' : '8rem',
         render: (r) => this.rowActions(row(r)),
       });
     }
@@ -398,7 +402,9 @@ export class ErpAttendanceRecords extends LitElement {
   }
 
   private rowActions(r: RecordRow): TemplateResult {
-    return html`<span class="actions">
+    // Inline: this cell is painted inside the table's shadow root, out of reach of this CSS.
+    // Wraps in the narrow cards (≤834 px); the table column is wide enough to keep one line.
+    return html`<span style="display: inline-flex; gap: .25rem; flex-wrap: wrap; justify-content: flex-end; max-width: 100%">
       ${this.canCorrect
         ? html`<ion-button
             size="small"
@@ -478,10 +484,20 @@ export class ErpAttendanceRecords extends LitElement {
     const draft = this.correcting;
     if (!draft || draft.saving) return;
     const tz = this.timezone;
-    const clockIn = fromLocalInput(draft.clockIn, tz);
+    const row = draft.row;
+    // An input left as prefilled keeps the stored instant with its seconds; only what the manager
+    // changed moves. Always sent as UTC `…Z`, the one shape the command accepts.
+    const clockIn =
+      draft.clockIn === toLocalInput(row.clock_in_at, tz)
+        ? new Date(row.clock_in_at).toISOString()
+        : fromLocalInput(draft.clockIn, tz);
     if (!clockIn) return this.patchCorrection({ error: this.t('ui.records.invalidClockIn') });
     const hasOut = draft.clockOut.trim() !== '';
-    const clockOut = hasOut ? fromLocalInput(draft.clockOut, tz) : null;
+    const clockOut = !hasOut
+      ? null
+      : row.clock_out_at && draft.clockOut === toLocalInput(row.clock_out_at, tz)
+        ? new Date(row.clock_out_at).toISOString()
+        : fromLocalInput(draft.clockOut, tz);
     if (hasOut && (!clockOut || Date.parse(clockOut) <= Date.parse(clockIn))) {
       return this.patchCorrection({ error: this.t('ui.records.invalidCorrection') });
     }
@@ -504,10 +520,13 @@ export class ErpAttendanceRecords extends LitElement {
     }
   }
 
+  // Both modals render their content inside their OWN `div.ion-delegate-host.ion-page`: Ionic's
+  // inline-modal delegate otherwise wraps the element children in a new one, which leaves Lit's
+  // comment markers behind and the modal opens empty the second time.
   private renderCorrection(): TemplateResult {
     const c = this.correcting;
     return html`<ion-modal .isOpen=${!!c} @ionModalDidDismiss=${() => (this.correcting = null)}>
-      ${c
+      <div class="ion-delegate-host ion-page">${c
         ? html`<ion-header>
               <ion-toolbar>
                 <ion-title>${this.t('ui.records.correctTitle')}</ion-title>
@@ -572,7 +591,7 @@ export class ErpAttendanceRecords extends LitElement {
                 ${c.saving ? this.t('ui.records.saving') : this.t('ui.records.save')}
               </ion-button>
             </ion-content>`
-        : nothing}
+        : nothing}</div>
     </ion-modal>`;
   }
 
@@ -606,7 +625,7 @@ export class ErpAttendanceRecords extends LitElement {
   private renderHistory(): TemplateResult {
     const h = this.history;
     return html`<ion-modal .isOpen=${!!h} @ionModalDidDismiss=${() => (this.history = null)}>
-      ${h
+      <div class="ion-delegate-host ion-page">${h
         ? html`<ion-header>
               <ion-toolbar>
                 <ion-title>${this.t('ui.records.historyTitle')}</ion-title>
@@ -646,7 +665,7 @@ export class ErpAttendanceRecords extends LitElement {
                         )}
                       </ion-list>`}
             </ion-content>`
-        : nothing}
+        : nothing}</div>
     </ion-modal>`;
   }
 
@@ -800,7 +819,11 @@ export class ErpAttendanceRecords extends LitElement {
         .pageSizeOptions=${[]}
         .sort=${ctrl?.state.sort}
         .sortDir=${ctrl?.state.dir ?? 'desc'}
-        .emptyMessage=${ctrl?.loading ? this.t('ui.records.loading') : this.t('ui.records.empty')}
+        .emptyMessage=${ctrl?.loading
+          ? this.t('ui.records.loading')
+          : ctrl?.error
+            ? this.t('ui.records.loadFailed')
+            : this.t('ui.records.empty')}
         @pageChange=${(e: CustomEvent<number>) => ctrl.setPage(e.detail)}
         @sortChange=${(e: CustomEvent<{ sort: string; dir: 'asc' | 'desc' }>) => ctrl.setSort(e.detail.sort, e.detail.dir)}
       ></ok-data-table>

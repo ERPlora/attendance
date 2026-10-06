@@ -266,6 +266,34 @@ describe('correcting a working day', () => {
     expect((find(el, 'attendance-correct-clock-out') as HTMLElement & { value: string }).value).toBe('2026-10-05T17:05');
   });
 
+  it('an untouched clock-in keeps its seconds (only what the manager changed moves)', async () => {
+    const el = await openCorrection();
+    type(el, 'attendance-correct-clock-out', '2026-10-05T17:30');
+    type(el, 'attendance-correct-reason', 'Left later than clocked');
+    find(el, 'attendance-correct-save')!.click();
+    await settle(el);
+    expect(commands[0]?.payload.clock_in_at).toBe('2026-10-05T07:02:41.000Z');
+    expect(commands[0]?.payload.clock_out_at).toBe('2026-10-05T15:30:00.000Z');
+  });
+
+  it('both modals own their wrapper, so Ionic does not move the content away from Lit (reopen stays painted)', async () => {
+    // Ionic's inline-modal delegate wraps the element children of an ion-modal in a new
+    // `div.ion-delegate-host` unless the first child already is one: the move leaves Lit's comment
+    // markers behind and the modal opens EMPTY the second time.
+    session('manager', MANAGER);
+    const el = await mount();
+    const modals = [...el.shadowRoot.querySelectorAll('ion-modal')];
+    expect(modals).toHaveLength(2);
+    for (const m of modals) {
+      expect(m.children).toHaveLength(1);
+      expect(m.firstElementChild?.classList.contains('ion-delegate-host')).toBe(true);
+      expect(m.firstElementChild?.classList.contains('ion-page')).toBe(true);
+    }
+    find(el, 'attendance-correct-rec-101')!.click();
+    await settle(el);
+    expect(modals[0].firstElementChild?.querySelector('[data-testid="attendance-correct-save"]')).toBeTruthy();
+  });
+
   it('a clock-out not after the clock-in is refused on screen and never sent', async () => {
     const el = await openCorrection();
     type(el, 'attendance-correct-clock-in', '2026-10-05T17:00');
@@ -418,6 +446,9 @@ describe('load failure', () => {
     };
     const el = await mount();
     expect(find(el, 'attendance-records-error')?.textContent).toContain('The hub did not return the data.');
+    // A failed load is not «no records»: the table must not contradict the error (pm#530).
+    const table = el.shadowRoot.querySelector('ok-data-table') as unknown as { emptyMessage: string };
+    expect(table.emptyMessage).toBe('ui.records.loadFailed');
     pageAnswer = async () => ({ rows: ROWS, total: 2, limit: 50, offset: 0 });
     find(el, 'attendance-records-retry')!.click();
     await settle(el);
