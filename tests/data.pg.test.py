@@ -833,7 +833,8 @@ try:
     check(ok, f"gil ends his break, got {code}")
     check(hugo_state() == [["open", "t"]],
           f"gil's break_end must leave hugo's break running and his day open, got {hugo_state()}")
-    run_command("attendance.break_start", {}, THIRD_HUB, "gil", at(40))
+    ok, code = run_command("attendance.break_start", {}, THIRD_HUB, "gil", at(40))
+    check(ok, f"gil starts a second break, so his clock_out has a break to end first, got {code}")
     ok, code = run_command("attendance.clock_out", {}, THIRD_HUB, "gil", at(50))
     check(ok, f"gil clocks out with a break running, got {code}")
     check(hugo_state() == [["open", "t"]],
@@ -855,8 +856,9 @@ try:
 
     # --- hub-c · correction timestamps: UTC `Z` only, stored verbatim --------------------------
     # The list engine sorts and range-filters clock_in_at as TEXT, and every row the runtime
-    # writes holds `:now` in UTC `…Z`. A `+02:00` value would sort and filter in the wrong place,
-    # so the schema accepts exactly what `Date.prototype.toISOString()` sends.
+    # writes holds `:now` in UTC (`…+00:00` with nanoseconds, not `…Z`). Both forms are UTC, so
+    # they order correctly to the second. A `+02:00` value would sort and filter in the wrong
+    # place, so the schema accepts exactly what `Date.prototype.toISOString()` sends.
     correct_schema = json.loads((MODULE_DIR / MANIFEST["commands"]["attendance.records.correct"]["schema"]).read_text())
     for field_name in ("clock_in_at", "clock_out_at"):
         pattern = correct_schema["properties"][field_name]["pattern"]
