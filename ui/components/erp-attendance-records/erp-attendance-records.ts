@@ -122,6 +122,8 @@ const TICK_MS = 60_000;
 const MONTHS_OFFERED = 24;
 const STATUSES = ['open', 'closed', 'needs_review'] as const;
 const STATUS_COLOR: Record<string, string> = { open: 'primary', closed: 'medium', needs_review: 'warning' };
+// Inline on purpose: an open ion-modal is moved to <body>, out of reach of this component's CSS.
+const MODAL_ERROR_STYLE = 'color: var(--ion-color-danger, #c5000f); font-weight: 600';
 const LIVE_EVENTS = [
   'attendance.clocked_in',
   'attendance.clocked_out',
@@ -141,6 +143,7 @@ export class ErpAttendanceRecords extends LitElement {
     .note { margin: .25rem 0 .75rem; color: var(--ion-color-warning-shade, #b26b00); font-size: .9rem; }
     .err { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .25rem 0 .75rem;
       color: var(--ion-color-danger, #c5000f); font-weight: 600; }
+    .err ion-button { --color: var(--ion-color-danger, #c5000f); --border-color: var(--ion-color-danger, #c5000f); }
     .actions { display: flex; gap: .25rem; }
     .radius { display: inline-flex; gap: .25rem; font-size: 1.1rem; }
   `;
@@ -174,12 +177,17 @@ export class ErpAttendanceRecords extends LitElement {
     return erplora().timezone || 'UTC';
   }
 
-  private get recordsQuery(): string {
-    return this.team ? 'attendance.records.list' : 'attendance.records.mine';
+  /** One page of days: the team's or the caller's (literal names: contracts, ADR-0127). */
+  private pageRecords(params: ListParams): Promise<ListPage<RecordRow>> {
+    return this.team
+      ? erplora().queryPage<RecordRow>('attendance.records.list', params)
+      : erplora().queryPage<RecordRow>('attendance.records.mine', params);
   }
 
-  private get breaksQuery(): string {
-    return this.team ? 'attendance.breaks.list' : 'attendance.breaks.mine';
+  private pageBreaks(params: ListParams): Promise<ListPage<BreakRow>> {
+    return this.team
+      ? erplora().queryPage<BreakRow>('attendance.breaks.list', params)
+      : erplora().queryPage<BreakRow>('attendance.breaks.mine', params);
   }
 
   connectedCallback(): void {
@@ -204,12 +212,16 @@ export class ErpAttendanceRecords extends LitElement {
     this.team = sessionCan(this.session, 'attendance.view_all');
     this.canCorrect = sessionCan(this.session, 'attendance.correct');
     this.month = monthOf(Date.now(), this.timezone);
-    this.ctrl = createListController<RecordRow>(erplora(), this.recordsQuery, () => this.onListChange(), {
+    const opts = {
       pageSize: 50,
       sort: 'clock_in_at',
-      dir: 'desc',
+      dir: 'desc' as const,
       filters: { clock_in_at: monthRange(this.month, this.timezone) },
-    });
+    };
+    const onChange = () => this.onListChange();
+    this.ctrl = this.team
+      ? createListController<RecordRow>(erplora(), 'attendance.records.list', onChange, opts)
+      : createListController<RecordRow>(erplora(), 'attendance.records.mine', onChange, opts);
     void this.ctrl.load();
     if (this.team) void this.loadUsers();
   }
@@ -237,7 +249,7 @@ export class ErpAttendanceRecords extends LitElement {
     const from = runningBreaksFrom(rows);
     if (from === null) return [];
     const ids = new Set(rows.filter((r) => r.status === 'open').map((r) => r.id));
-    const page = await erplora().queryPage<BreakRow>(this.breaksQuery, {
+    const page = await this.pageBreaks({
       limit: EXPORT_PAGE,
       offset: 0,
       filters: { started_at: { from } },
@@ -549,7 +561,7 @@ export class ErpAttendanceRecords extends LitElement {
                 @ionInput=${(e: Event) => this.patchCorrection({ reason: String((e.target as HTMLTextAreaElement).value ?? '') })}
               ></ion-textarea>
               ${c.error
-                ? html`<ion-text color="danger"><p data-testid="attendance-correct-error" role="alert">${c.error}</p></ion-text>`
+                ? html`<p style=${MODAL_ERROR_STYLE} data-testid="attendance-correct-error" role="alert">${c.error}</p>`
                 : nothing}
               <ion-button
                 expand="block"
@@ -612,7 +624,7 @@ export class ErpAttendanceRecords extends LitElement {
               ${h.loading
                 ? html`<p><ion-spinner name="dots"></ion-spinner> ${this.t('ui.records.historyLoading')}</p>`
                 : h.error
-                  ? html`<ion-text color="danger"><p data-testid="attendance-history-error" role="alert">${h.error}</p></ion-text>`
+                  ? html`<p style=${MODAL_ERROR_STYLE} data-testid="attendance-history-error" role="alert">${h.error}</p>`
                   : h.items.length === 0
                     ? html`<p data-testid="attendance-history-empty">${this.t('ui.records.historyEmpty')}</p>`
                     : html`<ion-list data-testid="attendance-history-list" lines="full">
@@ -645,7 +657,7 @@ export class ErpAttendanceRecords extends LitElement {
     const all: RecordRow[] = [];
     let total = Infinity;
     while (all.length < total) {
-      const page = await erplora().queryPage<RecordRow>(this.recordsQuery, {
+      const page = await this.pageRecords({
         limit: EXPORT_PAGE,
         offset: all.length,
         sort: this.ctrl.state.sort,
@@ -764,7 +776,7 @@ export class ErpAttendanceRecords extends LitElement {
       ${ctrl?.error
         ? html`<div class="err" role="alert">
             <span data-testid="attendance-records-error">${ctrl.error || this.t('ui.records.loadFailed')}</span>
-            <ion-button size="small" fill="outline" color="danger" data-testid="attendance-records-retry" @click=${() => void ctrl.load()}>
+            <ion-button size="small" fill="outline" data-testid="attendance-records-retry" @click=${() => void ctrl.load()}>
               <ion-icon slot="start" name="refresh-outline" aria-hidden="true"></ion-icon>${this.t('ui.records.retry')}
             </ion-button>
           </div>`

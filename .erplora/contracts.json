@@ -2,9 +2,18 @@
   "schema_version": 1,
   "module": "attendance",
   "consumes": {
-    "queries": [],
+    "queries": [
+      "attendance.breaks.list",
+      "attendance.breaks.mine",
+      "attendance.corrections.list",
+      "attendance.records.list",
+      "attendance.records.mine",
+      "hub.users.list"
+    ],
     "optional_queries": [],
-    "commands": [],
+    "commands": [
+      "attendance.records.correct"
+    ],
     "events": [],
     "slots": []
   }
