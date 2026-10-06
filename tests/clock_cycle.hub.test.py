@@ -39,6 +39,11 @@ LOCATION_OFF = {
 
 def test_full_working_day(hub: Hub) -> str:
     print("\n1 · clock in → break → clock out, as one fresh person")
+    # Somebody else works a day first, so "only the caller's days" is a real claim and not the
+    # accident of an empty hub.
+    hub.as_user(new_user())
+    hub.run("attendance.clock_in", {"source": "shared"})
+    hub.run("attendance.clock_out", {})
     hub.as_user(new_user())
     hub.check("nobody is clocked in yet", hub.query("attendance.records.mine_open"), [])
 
