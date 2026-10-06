@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 import { define } from '@erplora/outfitkit/define';
 // i18n catalogue of the module (ADR-0055/0199): esbuild inlines these JSON into the bundle. English
 // is the source, Spanish its translation; no visible string is hardcoded.
@@ -253,6 +254,44 @@ export class ErpAttendanceClock extends LitElement {
       padding: 48px 16px;
       text-align: center;
     }
+    .big-icon {
+      font-size: 40px;
+    }
+    /* Tones by token: the color attribute never paints inside this shadow root (module-toolkit#273). */
+    ion-button.tone-success {
+      --background: var(--ion-color-success, #2dd36f);
+      --background-activated: var(--ion-color-success-shade, #28ba62);
+      --background-hover: var(--ion-color-success-tint, #42d77d);
+      --color: var(--ion-color-success-contrast, #fff);
+    }
+    ion-button.tone-danger {
+      --background: var(--ion-color-danger, #c5000f);
+      --background-activated: var(--ion-color-danger-shade, #ad000d);
+      --background-hover: var(--ion-color-danger-tint, #cb1a27);
+      --color: var(--ion-color-danger-contrast, #fff);
+    }
+    ion-button.tone-primary {
+      --background: var(--ion-color-primary, #3880ff);
+      --background-activated: var(--ion-color-primary-shade, #3171e0);
+      --background-hover: var(--ion-color-primary-tint, #4c8dff);
+      --color: var(--ion-color-primary-contrast, #fff);
+    }
+    ion-badge {
+      --padding-start: 8px;
+      --padding-end: 8px;
+    }
+    ion-badge.tone-success {
+      --background: color-mix(in srgb, var(--ion-color-success, #2dd36f) 18%, transparent);
+      --color: var(--ion-color-success-shade, #1f7a3a);
+    }
+    ion-badge.tone-medium {
+      --background: color-mix(in srgb, var(--ion-color-medium, #92949c) 18%, transparent);
+      --color: var(--ion-color-medium-shade, #555);
+    }
+    ion-badge.tone-warning {
+      --background: color-mix(in srgb, var(--ion-color-warning, #ffc409) 25%, transparent);
+      --color: color-mix(in srgb, var(--ion-color-warning-shade, #e0ac08) 45%, var(--ion-text-color, #1c1b18));
+    }
     .empty {
       margin: 0;
       padding: 16px 0;
@@ -404,7 +443,7 @@ export class ErpAttendanceClock extends LitElement {
           return;
         }
       }
-      await this.send('attendance.clock_in', { source: this.mode, ...located }, 'ui.clock.clockedIn');
+      await this.send(() => erplora().command('attendance.clock_in', { source: this.mode, ...located }), 'ui.clock.clockedIn');
     } finally {
       this.busy = '';
     }
@@ -426,7 +465,7 @@ export class ErpAttendanceClock extends LitElement {
           located = NOT_LOCATED;
         }
       }
-      await this.send('attendance.clock_out', { ...located }, 'ui.clock.clockedOut');
+      await this.send(() => erplora().command('attendance.clock_out', { ...located }), 'ui.clock.clockedOut');
     } finally {
       this.busy = '';
     }
@@ -437,21 +476,24 @@ export class ErpAttendanceClock extends LitElement {
     this.busy = 'break';
     this.notice = null;
     try {
-      if (this.open.open_break_id) await this.send('attendance.break_end', {}, 'ui.clock.breakEnded');
-      else await this.send('attendance.break_start', {}, 'ui.clock.breakStarted');
+      if (this.open.open_break_id) {
+        await this.send(() => erplora().command('attendance.break_end', {}), 'ui.clock.breakEnded');
+      } else {
+        await this.send(() => erplora().command('attendance.break_start', {}), 'ui.clock.breakStarted');
+      }
     } finally {
       this.busy = '';
     }
   }
 
   /**
-   * Run a command and reload. A refusal is spoken in the module's words and ALSO reloads: the
+   * Run a command (a thunk, so each call site names its command literally — ADR-0127) and reload. A refusal is spoken in the module's words and ALSO reloads: the
    * typical refusal (`clock_in_rejected`, `no_open_record`…) means the screen was out of date —
    * the day was opened or closed from another device — and the reload shows the real state.
    */
-  private async send(name: string, payload: Record<string, unknown>, doneKey: string): Promise<void> {
+  private async send(run: () => Promise<unknown>, doneKey: string): Promise<void> {
     try {
-      await erplora().command(name, payload);
+      await run();
       this.notice = {
         kind: 'success',
         text: this.t(doneKey, { time: formatTime(new Date().toISOString(), this.timezone, this.locale) }),
@@ -484,23 +526,22 @@ export class ErpAttendanceClock extends LitElement {
 
   private renderStatusBadge(status: string) {
     const s = STATUS[status] ?? STATUS.closed;
-    return html`<ion-badge
-      color=${s.color}
-      style=${`--background:color-mix(in srgb, var(--ion-color-${s.color}) 18%, transparent);--color:var(--ion-color-${s.color}-shade, var(--ion-color-${s.color}))`}
-      >${this.t(s.key)}</ion-badge
-    >`;
+    return html`<ion-badge class=${classMap({ [`tone-${s.color}`]: true })}>${this.t(s.key)}</ion-badge>`;
   }
 
   private renderDay(day: Day) {
     const tz = this.timezone;
     const locale = this.locale;
     const inAt = formatTime(day.clock_in_at, tz, locale);
-    const outAt = day.clock_out_at ? formatTime(day.clock_out_at, tz, locale) : this.t('ui.clock.noClockOut');
+    // An open day is still running: its badge already says so, and it has no clock-out to show.
+    const outAt = day.clock_out_at
+      ? formatTime(day.clock_out_at, tz, locale)
+      : day.status === 'open'
+        ? '…'
+        : this.t('ui.clock.noClockOut');
     const duration = day.clock_out_at
       ? formatHm(Math.max(0, minutesBetween(day.clock_in_at, day.clock_out_at) - Number(day.breaks_closed_minutes ?? 0)))
-      : day.status === 'open'
-        ? this.t('ui.clock.inProgress')
-        : '';
+      : '';
     return html`<ion-item lines="full">
       <ion-label>
         <h3>${formatLocalDate(day.local_date, locale)}</h3>
@@ -546,7 +587,7 @@ export class ErpAttendanceClock extends LitElement {
             </div>
             <div class="actions">
               ${onBreak
-                ? html`<ion-button expand="block" color="primary" data-testid="attendance-break-end"
+                ? html`<ion-button expand="block" class="tone-primary" data-testid="attendance-break-end"
                     ?disabled=${busy} @click=${() => this.toggleBreak()}>
                     <ion-icon slot="start" name="play-outline"></ion-icon>${this.t('ui.clock.breakEnd')}
                   </ion-button>`
@@ -554,7 +595,7 @@ export class ErpAttendanceClock extends LitElement {
                     ?disabled=${busy} @click=${() => this.toggleBreak()}>
                     <ion-icon slot="start" name="cafe-outline"></ion-icon>${this.t('ui.clock.breakStart')}
                   </ion-button>`}
-              <ion-button expand="block" color="danger" class="primary" data-testid="attendance-clock-out"
+              <ion-button expand="block" class="primary tone-danger" data-testid="attendance-clock-out"
                 ?disabled=${busy} @click=${() => this.clockOut()}>
                 ${this.busy === 'out'
                   ? html`<ion-spinner slot="start" name="crescent"></ion-spinner>`
@@ -564,7 +605,7 @@ export class ErpAttendanceClock extends LitElement {
             </div>`
         : html`<p class="status">${this.t('ui.clock.statusOut')}</p>
             <div class="actions">
-              <ion-button expand="block" color="success" class="primary" data-testid="attendance-clock-in"
+              <ion-button expand="block" class="primary tone-success" data-testid="attendance-clock-in"
                 ?disabled=${busy} @click=${() => this.clockIn()}>
                 ${this.busy === 'in'
                   ? html`<ion-spinner slot="start" name="crescent"></ion-spinner>`
@@ -620,7 +661,7 @@ export class ErpAttendanceClock extends LitElement {
     }
     if (this.loadError) {
       return html`<div class="center" role="alert" data-testid="attendance-clock-error">
-        <ion-icon name="cloud-offline-outline" style="font-size:40px" aria-hidden="true"></ion-icon>
+        <ion-icon class="big-icon" name="cloud-offline-outline" aria-hidden="true"></ion-icon>
         <p>${this.loadError}</p>
         <ion-button data-testid="attendance-clock-retry" ?disabled=${this.loading} @click=${() => this.load()}>
           <ion-icon slot="start" name="refresh-outline"></ion-icon>${this.t('ui.common.retry')}

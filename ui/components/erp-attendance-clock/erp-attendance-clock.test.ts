@@ -442,7 +442,8 @@ describe('erp-attendance-clock — today and recent days', () => {
     const el = await mount();
     const list = byId(el, 'attendance-clock-recent');
     expect(list).not.toBeNull();
-    const review = list!.querySelector('ion-badge[color="warning"]');
+    // Tone by class: `color=` never paints inside the component's shadow root (module-toolkit#273).
+    const review = list!.querySelector('ion-badge.tone-warning');
     expect(review?.textContent).toContain(en('ui.common.statusNeedsReview'));
     // 07:00–15:30 is 510 min minus a 30-minute break: 8:00 worked.
     expect(list!.textContent).toContain('8:00');
@@ -450,9 +451,19 @@ describe('erp-attendance-clock — today and recent days', () => {
     expect(list!.textContent).toContain('17:30');
   });
 
+  it('an open day says «in progress» once (the badge), and shows no clock-out yet', async () => {
+    world.mine = [
+      { id: 'rec-8', user_id: 'user-ana', clock_in_at: '2026-10-06T06:58:12Z', clock_out_at: null, status: 'open', local_date: '2026-10-06', break_count: 0, breaks_closed_minutes: 0 },
+    ];
+    const el = await mount();
+    const text = byId(el, 'attendance-clock-recent')!.textContent ?? '';
+    expect(text.split(en('ui.common.statusOpen')).length - 1).toBe(1);
+    expect(text).not.toContain(en('ui.clock.noClockOut'));
+  });
+
   it('asks only for the last 10 days for the recent list', async () => {
     await mount();
-    const sdk = (globalThis as { erplora: { queryPage: ReturnType<typeof vi.fn> } }).erplora;
+    const sdk = (globalThis as unknown as { erplora: { queryPage: ReturnType<typeof vi.fn> } }).erplora;
     expect(sdk.queryPage).toHaveBeenCalledWith(
       'attendance.records.mine',
       expect.objectContaining({ limit: 10, sort: 'clock_in_at', dir: 'desc' }),

@@ -77,8 +77,7 @@
       "recent": "Recent days",
       "empty": "No records yet",
       "noClockOut": "no clock-out",
-      "workedShort": "{duration} worked",
-      "inProgress": "In progress"
+      "workedShort": "{duration} worked"
     },
     "records": {
     },
@@ -95,7 +94,7 @@
       "locating": "Getting your location…",
       "accuracy": "Position read with an accuracy of ±{accuracy} m. Do this from the workplace itself.",
       "workplaceMissing": "Set the workplace location or nobody on a personal device will be able to clock in.",
-      "autoClose": "Flag open days for review after (hours)",
+      "autoClose": "Flag for review after (hours)",
       "autoCloseHelp": "A working day still open after this many hours is marked for review so a manager can correct it.",
       "save": "Save",
       "saving": "Saving…",

@@ -2,9 +2,20 @@
   "schema_version": 1,
   "module": "attendance",
   "consumes": {
-    "queries": [],
+    "queries": [
+      "attendance.breaks.mine",
+      "attendance.records.mine",
+      "attendance.records.mine_open",
+      "attendance.settings.get"
+    ],
     "optional_queries": [],
-    "commands": [],
+    "commands": [
+      "attendance.break_end",
+      "attendance.break_start",
+      "attendance.clock_in",
+      "attendance.clock_out",
+      "attendance.settings.update"
+    ],
     "events": [],
     "slots": []
   }

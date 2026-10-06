@@ -77,8 +77,7 @@
       "recent": "Últimas jornadas",
       "empty": "Todavía no hay registros",
       "noClockOut": "sin salida",
-      "workedShort": "{duration} trabajadas",
-      "inProgress": "En curso"
+      "workedShort": "{duration} trabajadas"
     },
     "records": {
     },
@@ -95,7 +94,7 @@
       "locating": "Obteniendo tu ubicación…",
       "accuracy": "Posición leída con una precisión de ±{accuracy} m. Hazlo desde el propio lugar de trabajo.",
       "workplaceMissing": "Fija la ubicación del lugar de trabajo o nadie podrá fichar desde un dispositivo personal.",
-      "autoClose": "Marcar para revisar las jornadas abiertas tras (horas)",
+      "autoClose": "Marcar a revisar tras (horas)",
       "autoCloseHelp": "Una jornada que sigue abierta pasadas estas horas se marca para revisar y que un encargado la corrija.",
       "save": "Guardar",
       "saving": "Guardando…",

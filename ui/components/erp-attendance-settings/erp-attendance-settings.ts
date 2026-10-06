@@ -93,6 +93,13 @@ export class ErpAttendanceSettings extends LitElement {
     ion-toggle {
       width: 100%;
     }
+    /* A long label wraps instead of being cut with an ellipsis on a phone. */
+    ion-toggle::part(label) {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      line-height: 1.35;
+    }
     .pair {
       display: grid;
       gap: 12px;
@@ -120,9 +127,15 @@ export class ErpAttendanceSettings extends LitElement {
       margin: 0;
       padding: 10px 12px;
       border-radius: 10px;
-      color: var(--ion-color-warning-shade, #8a5a00);
+      /* The warning shade alone is too light to read on its own wash: darken it towards the text. */
+      color: color-mix(in srgb, var(--ion-color-warning-shade, #e0ac08) 45%, var(--ion-text-color, #1c1b18));
       background: color-mix(in srgb, var(--ion-color-warning, #ffc409) 18%, transparent);
+      border-left: 4px solid var(--ion-color-warning, #ffc409);
       font-weight: 600;
+    }
+    .warning ion-icon {
+      flex: 0 0 auto;
+      font-size: 20px;
     }
     .msg {
       margin: 0;
@@ -150,6 +163,9 @@ export class ErpAttendanceSettings extends LitElement {
       .actions ion-button {
         width: 100%;
       }
+    }
+    .big-icon {
+      font-size: 40px;
     }
     .center {
       display: flex;
@@ -286,7 +302,7 @@ export class ErpAttendanceSettings extends LitElement {
     }
     if (this.loadError) {
       return html`<div class="center" role="alert" data-testid="attendance-settings-error">
-        <ion-icon name="cloud-offline-outline" style="font-size:40px" aria-hidden="true"></ion-icon>
+        <ion-icon class="big-icon" name="cloud-offline-outline" aria-hidden="true"></ion-icon>
         <p>${this.loadError}</p>
         <ion-button data-testid="attendance-settings-retry" ?disabled=${this.loading} @click=${() => this.load()}>
           <ion-icon slot="start" name="refresh-outline"></ion-icon>${this.t('ui.common.retry')}
