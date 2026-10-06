@@ -1,0 +1,11 @@
+[
+  {
+    "id": "rec-104",
+    "clock_in_at": "2026-10-06T06:58:12Z",
+    "source": "shared",
+    "in_distance_m": null,
+    "in_within_radius": null,
+    "open_break_id": "brk-212",
+    "open_break_started_at": "2026-10-06T10:30:02Z"
+  }
+]

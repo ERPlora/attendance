@@ -1,0 +1,9 @@
+[
+  {
+    "require_location": 1,
+    "geofence_radius_m": 100,
+    "workplace_lat": 40.416775,
+    "workplace_lng": -3.70379,
+    "auto_close_after_hours": 12
+  }
+]
