@@ -133,7 +133,7 @@ export function localDateTime(iso: string, timezone: string): string {
   return `${localDate(iso, timezone)} ${localTime(iso, timezone)}`;
 }
 
-/** The value of an `<input type="datetime-local">` showing an instant in the business zone. */
+/** The value of a `datetime-local` input showing an instant in the business zone. */
 export function toLocalInput(iso: string, timezone: string): string {
   return `${localDate(iso, timezone)}T${localTime(iso, timezone)}`;
 }
