@@ -1,7 +1,7 @@
 {
   "name": "@erplora/module-attendance",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "ERPlora time clock module (registro de jornada): declarative manifest + Lit Web Components, built with the toolkit."
 }
