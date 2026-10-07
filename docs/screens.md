@@ -23,8 +23,12 @@
   the clock-in/out was inside the radius.
 - **Correct** (managers with `attendance.correct`): change the clock-in and/or clock-out and write
   the reason (mandatory, at least 3 characters). The clock-out must be after the clock-in. Leaving
-  the clock-out empty reopens the day.
-- **History**: every correction of a working day — who, when, before → after, and the reason.
+  the clock-out empty reopens the day. **Correct** lives in the team view, so a role needs
+  `attendance.view_all` as well: with `attendance.correct` alone the button is not shown.
+- **History** (managers with `attendance.view_all`): every correction of a working day — who,
+  when, before → after, and the reason. A correction made by the system (a scheduled task) shows
+  **System** as its author.
+- **Month**: the current month and the 48 before it (the four years the records are kept).
 - **Export CSV**: the current filter as `attendance-YYYY-MM.csv`.
 
 ## Settings (module Settings tab)

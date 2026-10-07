@@ -119,7 +119,8 @@ function usersOf(result: unknown): HubUser[] {
 
 const EXPORT_PAGE = 500;
 const TICK_MS = 60_000;
-const MONTHS_OFFERED = 24;
+// The current month and 48 back: the four years the records must be kept (RD-ley 8/2019).
+const MONTHS_OFFERED = 49;
 const STATUSES = ['open', 'closed', 'needs_review'] as const;
 const STATUS_COLOR: Record<string, string> = { open: 'primary', closed: 'medium', needs_review: 'warning' };
 // Inline on purpose: an open ion-modal is moved to <body>, out of reach of this component's CSS.
@@ -294,8 +295,10 @@ export class ErpAttendanceRecords extends LitElement {
     const tz = this.timezone;
     const d = localDate(iso, tz);
     if (d === day) return localTime(iso, tz);
-    const [, m, dd] = d.split('-');
-    return `${localTime(iso, tz)} (${dd}/${m})`;
+    const date = new Intl.DateTimeFormat(erplora().locale, { day: '2-digit', month: '2-digit', timeZone: tz }).format(
+      new Date(iso),
+    );
+    return `${localTime(iso, tz)} (${date})`;
   }
 
   private statusLabel(status: string | null | undefined): string {
@@ -650,7 +653,7 @@ export class ErpAttendanceRecords extends LitElement {
                         ${h.items.map(
                           (c) => html`<ion-item>
                             <ion-label class="ion-text-wrap">
-                              <h3>${this.nameOf(c.created_by ?? '')} · ${localDateTime(c.created_at, this.timezone)}</h3>
+                              <h3>${c.created_by ? this.nameOf(c.created_by) : this.t('ui.records.systemActor')} · ${localDateTime(c.created_at, this.timezone)}</h3>
                               <p>
                                 ${this.t('ui.records.historyBefore')}: ${this.span(c.old_clock_in_at, c.old_clock_out_at)}
                                 (${this.statusLabel(c.old_status)})
@@ -706,7 +709,7 @@ export class ErpAttendanceRecords extends LitElement {
       const breaks = await this.fetchRunningBreaks(rows);
       const csv = toCsv(rows, this.csvNames(), { timezone: this.timezone, now: Date.now(), breaks });
       // The BOM makes spreadsheet apps read the accents of the names as UTF-8.
-      const blob = new Blob(['﻿', csv], { type: 'text/csv;charset=utf-8' });
+      const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

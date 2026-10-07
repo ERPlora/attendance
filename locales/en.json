@@ -110,7 +110,8 @@
       "historyFailed": "The history could not be loaded.",
       "historyBefore": "Before",
       "historyAfter": "After",
-      "historyReason": "Reason"
+      "historyReason": "Reason",
+      "systemActor": "System"
     },
     "settings": {
     },

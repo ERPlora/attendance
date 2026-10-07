@@ -110,7 +110,8 @@
       "historyFailed": "No se pudo cargar el historial.",
       "historyBefore": "Antes",
       "historyAfter": "Después",
-      "historyReason": "Motivo"
+      "historyReason": "Motivo",
+      "systemActor": "Sistema"
     },
     "settings": {
     },

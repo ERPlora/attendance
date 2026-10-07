@@ -193,6 +193,85 @@ describe('own days (employee without attendance.view_all)', () => {
       to: '2026-09-30T22:00:00',
     });
   });
+
+  it('offers every month of the four-year legal retention: the current one and 48 back', async () => {
+    session('employee', EMPLOYEE);
+    const el = await mount();
+    const select = find(el, 'attendance-records-month')!;
+    const months = [...select.querySelectorAll('ion-select-option')].map(
+      (o) => o.getAttribute('value') ?? (o as HTMLElement & { value: string }).value,
+    );
+    expect(months[0]).toBe('2026-10');
+    // 47 and 48 months back from October 2026.
+    expect(months).toContain('2022-11');
+    expect(months).toContain('2022-10');
+    expect(months).toHaveLength(49);
+  });
+
+  it('a running break from attendance.breaks.mine is taken out of the open day, asked from its clock-in', async () => {
+    session('employee', EMPLOYEE);
+    pageAnswer = async (name) => {
+      if (name === 'attendance.breaks.mine') {
+        return {
+          rows: [{ id: 'brk-1', record_id: 'rec-104', started_at: '2026-10-06T10:00:00Z', ended_at: null }],
+          total: 1,
+          limit: 500,
+          offset: 0,
+        };
+      }
+      if (name.startsWith('attendance.breaks.')) return { rows: [], total: 0, limit: 500, offset: 0 };
+      return { rows: ROWS, total: ROWS.length, limit: 50, offset: 0 };
+    };
+    const el = await mount();
+    const call = pages.find((p) => p.name === 'attendance.breaks.mine');
+    expect(call?.params.filters).toEqual({ started_at: { from: '2026-10-06T08:00:00' } });
+    const text = tableText(el);
+    // 08:00Z → 10:30Z is 2:30, minus the 30 minutes of the break running since 10:00Z.
+    expect(text).toContain('2:00');
+    expect(text).not.toContain('2:30');
+  });
+
+  it('reads the instants the runtime stores (+00:00 with nanoseconds) by instant, not as text', async () => {
+    session('employee', EMPLOYEE);
+    const runtimeRows = [
+      { ...ROWS[0], clock_in_at: '2026-10-06T08:00:00.123456789+00:00' },
+      {
+        ...ROWS[1],
+        clock_in_at: '2026-10-05T07:02:41.987654321+00:00',
+        clock_out_at: '2026-10-05T15:05:03.000000001+00:00',
+      },
+    ];
+    pageAnswer = async (name) => {
+      if (name.startsWith('attendance.breaks.')) return { rows: [], total: 0, limit: 500, offset: 0 };
+      return { rows: runtimeRows, total: runtimeRows.length, limit: 50, offset: 0 };
+    };
+    const el = await mount();
+    const text = tableText(el);
+    // Business wall clock (Europe/Madrid, UTC+2 in October).
+    expect(text).toContain('09:02');
+    expect(text).toContain('17:05');
+    // 08:00:00.123 → 10:30:00 is 149.99 min (whole minutes); the closed day 482 − 30.
+    expect(text).toContain('2:29');
+    expect(text).toContain('7:32');
+    expect(pages.find((p) => p.name === 'attendance.breaks.mine')?.params.filters).toEqual({
+      started_at: { from: '2026-10-06T08:00:00' },
+    });
+  });
+
+  it('a clock-out on another day (night shift) carries that day in the locale order of the business', async () => {
+    session('employee', EMPLOYEE);
+    const night = {
+      ...ROWS[1], id: 'rec-120', clock_in_at: '2026-10-05T20:00:00Z', clock_out_at: '2026-10-06T04:00:00Z',
+      local_date: '2026-10-05', breaks_closed_minutes: 0,
+    };
+    pageAnswer = async (name) => {
+      if (name.startsWith('attendance.breaks.')) return { rows: [], total: 0, limit: 500, offset: 0 };
+      return { rows: [night], total: 1, limit: 50, offset: 0 };
+    };
+    const el = await mount();
+    // locale `en`: month/day, so 6 October reads 10/06 (a hardcoded dd/mm would say 06/10).
+    expect(tableText(el)).toContain('06:00 (10/06)');
+  });
 });
 
 describe('the team (manager with attendance.view_all)', () => {
@@ -249,6 +328,37 @@ describe('the team (manager with attendance.view_all)', () => {
     expect(history?.textContent).toContain('Forgot to clock out, confirmed with the shift sheet');
     expect(history?.textContent).toContain('Boss');
   });
+
+  it('a correction made by the system (no created_by) names the system, not an empty person', async () => {
+    session('manager', MANAGER);
+    pageAnswer = async (name) => {
+      if (name === 'attendance.corrections.list') {
+        return { rows: [{ ...CORRECTIONS[0], created_by: null }], total: 1, limit: 200, offset: 0 };
+      }
+      if (name.startsWith('attendance.breaks.')) return { rows: [], total: 0, limit: 500, offset: 0 };
+      return { rows: ROWS, total: ROWS.length, limit: 50, offset: 0 };
+    };
+    const el = await mount();
+    find(el, 'attendance-history-rec-101')!.click();
+    await settle(el);
+    const who = find(el, 'attendance-history-list')?.querySelector('h3')?.textContent?.trim() ?? '';
+    expect(who).toMatch(/^ui\.records\.systemActor · /);
+  });
+
+  it('when hub.users.list fails the days are still listed, by id, with a note saying why', async () => {
+    session('manager', MANAGER);
+    (globalThis as { erplora: { query: (name: string) => Promise<unknown> } }).erplora.query = async (name) => {
+      queries.push(name);
+      if (name === 'hub.users.list') throw new Error('users unavailable');
+      return [];
+    };
+    const el = await mount();
+    expect(queries).toContain('hub.users.list');
+    const text = tableText(el);
+    expect(text).toContain('user-ana');
+    expect(text).toContain('user-gone');
+    expect(find(el, 'attendance-records-users-note')?.textContent).toContain('ui.records.usersUnavailable');
+  });
 });
 
 describe('correcting a working day', () => {
@@ -303,6 +413,40 @@ describe('correcting a working day', () => {
     await settle(el);
     expect(commands).toEqual([]);
     expect(find(el, 'attendance-correct-error')?.textContent).toContain('ui.records.invalidCorrection');
+  });
+
+  it('a clock-out EQUAL to the clock-in is refused on screen and never sent', async () => {
+    const el = await openCorrection();
+    type(el, 'attendance-correct-clock-in', '2026-10-05T09:00');
+    type(el, 'attendance-correct-clock-out', '2026-10-05T09:00');
+    type(el, 'attendance-correct-reason', 'Zero-length day');
+    find(el, 'attendance-correct-save')!.click();
+    await settle(el);
+    expect(commands).toEqual([]);
+    expect(find(el, 'attendance-correct-error')?.textContent).toContain('ui.records.invalidCorrection');
+  });
+
+  it('an untouched runtime-shaped clock-in (+00:00, nanoseconds) is sent as the same instant in UTC Z', async () => {
+    session('manager', MANAGER);
+    pageAnswer = async (name) => {
+      if (name.startsWith('attendance.breaks.')) return { rows: [], total: 0, limit: 500, offset: 0 };
+      const row = {
+        ...ROWS[1],
+        clock_in_at: '2026-10-05T07:02:41.987654321+00:00',
+        clock_out_at: '2026-10-05T15:05:03.000000001+00:00',
+      };
+      return { rows: [row], total: 1, limit: 50, offset: 0 };
+    };
+    const el = await mount();
+    find(el, 'attendance-correct-rec-101')!.click();
+    await settle(el);
+    expect((find(el, 'attendance-correct-clock-in') as HTMLElement & { value: string }).value).toBe('2026-10-05T09:02');
+    type(el, 'attendance-correct-clock-out', '2026-10-05T17:30');
+    type(el, 'attendance-correct-reason', 'Left later than clocked');
+    find(el, 'attendance-correct-save')!.click();
+    await settle(el);
+    expect(commands[0]?.payload.clock_in_at).toBe('2026-10-05T07:02:41.987Z');
+    expect(commands[0]?.payload.clock_out_at).toBe('2026-10-05T15:30:00.000Z');
   });
 
   it('a missing reason is refused on screen and never sent', async () => {
@@ -383,7 +527,7 @@ describe('CSV export', () => {
 
   async function csvText(): Promise<string> {
     expect(blobs.length).toBe(1);
-    return (await blobs[0].text()).replace(/^﻿/, '');
+    return (await blobs[0].text()).replace(/^\uFEFF/, '');
   }
 
   it('exports EVERY page of the current filter, 500 at a time, with names and the file name of the month', async () => {
@@ -425,6 +569,16 @@ describe('CSV export', () => {
     await settle(el);
     expect(await csvText()).toBe('date,user,clock_in,clock_out,break_minutes,worked_minutes,status,within_radius_in,within_radius_out\r\n');
     expect(notices).toContainEqual({ type: 'info', message: 'ui.records.exportEmpty' });
+  });
+
+  it('the file starts with the UTF-8 BOM so spreadsheets read the accents', async () => {
+    session('employee', EMPLOYEE);
+    const el = await mount();
+    find(el, 'attendance-export-csv')!.click();
+    await settle(el);
+    const bytes = new Uint8Array(await blobs[0].arrayBuffer());
+    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(String.fromCharCode(bytes[3])).toBe('d');
   });
 
   it('in own mode the person column carries the session name', async () => {

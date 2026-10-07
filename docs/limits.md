@@ -20,6 +20,11 @@
 - **Correction times are UTC.** A correction is sent as UTC (`2026-10-06T08:00:00.000Z`, what the
   screen sends); a time with an offset (`+02:00`) is refused. The screen converts the local time
   you type into UTC before sending.
+- **Correcting needs the team view.** A role with `attendance.correct` but without
+  `attendance.view_all` does not see **Correct**: grant both to whoever corrects working days.
+- **Employees cannot see the correction history of their own days yet.** They see the corrected
+  times, but the trail (who, when, before → after, reason) is only shown to `attendance.view_all`
+  (attendance#8).
 - **A forgotten clock-out is flagged, not guessed.** The day becomes **needs review**; no
   clock-out time is invented. A manager sets it with a correction.
 
