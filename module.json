@@ -2,7 +2,7 @@
   "id": "attendance",
   "name": "Time clock",
   "description": "Time clock for employees: clock in and out with one tap, breaks, a legal working-day record (Spain, art. 34.9 ET) with a correction trail, and an optional workplace radius for personal devices.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "agent": {
     "description": "Clock employees in and out, start and end breaks, list working-day records, see who is clocked in now, and correct a record with a mandatory reason.",
     "keywords": [
