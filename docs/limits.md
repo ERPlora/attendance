@@ -11,6 +11,9 @@
 - **The radius trusts the device's GPS.** The distance is measured on the device and the server
   accepts what it reports, like Square and Factorial. A tampered device can report a false
   position. The device mode (shared / personal) is also reported by the client.
+- **Installed app on older Hubs counts as shared.** With a Hub whose SDK exposes the device mode
+  (hub#2584) the module uses it; older Hubs fall back to the HTTP door, which in the installed app
+  answers `shared`, so the radius only applies in the browser there.
 - **No automatic purge after four years.** Records are kept; nothing is archived or deleted yet.
 - **No pay or overtime.** Hours are not crossed with rates or contracts.
 - **A correction only touches the break left running.** When a correction sets a clock-out, a

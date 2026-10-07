@@ -38,6 +38,10 @@ Each clock-in records the mode of the device it came from, as answered by the Hu
 - **shared** — the counter POS everyone uses. Never asked for a location.
 - **personal** — the worker's own phone or laptop. Subject to the radius when location is required.
 
+With a Hub whose SDK exposes the device mode (hub#2584) the module takes it from the SDK; older
+Hubs fall back to the HTTP door, which in the installed app always answers `shared`, so there the
+radius only applies to clock-ins made from the browser.
+
 ## Location: what is stored and when
 
 Nothing is stored unless the business turns **Require location** on and the clock-in comes from a

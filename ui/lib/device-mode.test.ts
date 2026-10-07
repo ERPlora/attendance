@@ -71,3 +71,39 @@ describe('readDeviceMode', () => {
     expect(await readDeviceMode(f)).toBe('shared');
   });
 });
+
+describe('readDeviceMode with an SDK that exposes the device mode (hub#2584)', () => {
+  function failingFetch(): typeof fetch {
+    return vi.fn(async () => {
+      throw new TypeError('network down');
+    }) as unknown as typeof fetch;
+  }
+
+  it('answers `personal` from the SDK without any network call', async () => {
+    vi.stubGlobal('erplora', { deviceMode: 'personal' });
+    const f = answer(200, { ok: true, data: { mode: 'shared' } });
+    expect(await readDeviceMode(f)).toBe('personal');
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('answers `shared` from the SDK without any network call', async () => {
+    vi.stubGlobal('erplora', { deviceMode: 'shared' });
+    const f = answer(200, { ok: true, data: { mode: 'personal' } });
+    expect(await readDeviceMode(f)).toBe('shared');
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the HTTP door when the SDK has no deviceMode (older hub)', async () => {
+    vi.stubGlobal('erplora', { locale: 'es' });
+    const f = answer(200, { ok: true, data: { mode: 'personal' } });
+    expect(await readDeviceMode(f)).toBe('personal');
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the HTTP door for a value outside shared|personal, and fails towards `shared`', async () => {
+    vi.stubGlobal('erplora', { deviceMode: 'Personal' });
+    const f = failingFetch();
+    expect(await readDeviceMode(f)).toBe('shared');
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+});

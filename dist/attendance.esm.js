@@ -1796,7 +1796,17 @@ function deviceId() {
     return "";
   }
 }
+function fromSdk() {
+  try {
+    const mode = globalThis.erplora?.deviceMode;
+    return mode === "personal" || mode === "shared" ? mode : null;
+  } catch {
+    return null;
+  }
+}
 async function readDeviceMode(fetchImpl = globalThis.fetch) {
+  const sdkMode = fromSdk();
+  if (sdkMode) return sdkMode;
   try {
     if (typeof fetchImpl !== "function") return STRICT;
     const res = await fetchImpl("/api/device/mode", { headers: { "X-Device-Id": deviceId() } });
