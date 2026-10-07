@@ -1360,7 +1360,7 @@ var es_default = {
     "attendance.no_open_record": "No hay ninguna jornada abierta de la que fichar la salida.",
     "attendance.break_rejected": "No se ha podido empezar la pausa: no hay jornada abierta o ya hay una pausa en curso.",
     "attendance.no_open_break": "No hay ninguna pausa en curso que terminar.",
-    "attendance.record_not_found": "No se ha podido corregir la jornada: no existe, la salida no es posterior a la entrada o reabrirla dejar\xEDa a la persona con dos jornadas abiertas.",
+    "attendance.record_not_found": "No se ha podido corregir la jornada: no existe, la salida no es posterior a la entrada, las horas se solapan con otra jornada de esta persona o reabrirla dejar\xEDa a la persona con dos jornadas abiertas.",
     "attendance.settings_not_saved": "No se han podido guardar los ajustes del control horario. Vuelve a intentarlo en un momento."
   },
   ui: {
@@ -1444,6 +1444,7 @@ var es_default = {
       close: "Cerrar",
       invalidClockIn: "Indica la fecha y la hora de entrada.",
       invalidCorrection: "La salida tiene que ser posterior a la entrada.",
+      overlapsOtherDay: "Estas horas se solapan con otra jornada de esta persona.",
       reasonRequired: "Escribe un motivo de al menos 3 caracteres.",
       corrected: "Jornada corregida.",
       saveFailed: "No se pudo guardar la correcci\xF3n. Int\xE9ntalo de nuevo.",
@@ -1544,7 +1545,7 @@ var en_default = {
     "attendance.no_open_record": "There is no open working day to clock out of.",
     "attendance.break_rejected": "Could not start a break: there is no open working day or a break is already running.",
     "attendance.no_open_break": "There is no running break to end.",
-    "attendance.record_not_found": "The working day could not be corrected: it does not exist, the clock-out is not after the clock-in, or reopening it would leave the person with two open days.",
+    "attendance.record_not_found": "The working day could not be corrected: it does not exist, the clock-out is not after the clock-in, the hours overlap another working day of this person, or reopening it would leave the person with two open days.",
     "attendance.settings_not_saved": "The time clock settings could not be saved. Try again in a moment."
   },
   ui: {
@@ -1628,6 +1629,7 @@ var en_default = {
       close: "Close",
       invalidClockIn: "Enter the clock-in date and time.",
       invalidCorrection: "The clock-out must be after the clock-in.",
+      overlapsOtherDay: "These hours overlap another working day of this person.",
       reasonRequired: "Write a reason of at least 3 characters.",
       corrected: "Working day corrected.",
       saveFailed: "The correction could not be saved. Try again.",
@@ -5318,6 +5320,19 @@ function majorToMinor(amount, decimals) {
   return Number.isFinite(n6) ? Math.round(n6 * 10 ** decimals) : 0;
 }
 
+// ui/components/erp-attendance-records/overlap.ts
+function endOf(d3, now) {
+  if (d3.clock_out_at) return Date.parse(d3.clock_out_at);
+  return d3.status === "open" ? now : Date.parse(d3.clock_in_at);
+}
+function overlapsOtherDay(days, corrected, clockIn, clockOut, now) {
+  const start = Date.parse(clockIn);
+  const end = clockOut ? Date.parse(clockOut) : now;
+  return days.some(
+    (d3) => d3.user_id === corrected.user_id && d3.id !== corrected.id && Date.parse(d3.clock_in_at) < end && endOf(d3, now) > start
+  );
+}
+
 // ui/lib/permissions.ts
 function readSession() {
   try {
@@ -5365,8 +5380,7 @@ var LIVE_EVENTS = [
   "attendance.clocked_out",
   "attendance.break.started",
   "attendance.break.ended",
-  "attendance.record.corrected",
-  "attendance.record.needs_review"
+  "attendance.record.corrected"
 ];
 var ErpAttendanceRecords = class extends i3 {
   constructor() {
@@ -5688,6 +5702,9 @@ var ErpAttendanceRecords = class extends i3 {
     const reason = draft.reason.trim();
     if (reason.length < 3) return this.patchCorrection({ error: this.t("ui.records.reasonRequired") });
     this.patchCorrection({ saving: true, error: "" });
+    if (await this.overlapsAnotherDay(row, clockIn, clockOut)) {
+      return this.patchCorrection({ saving: false, error: this.t("ui.records.overlapsOtherDay") });
+    }
     try {
       await erplora2().command("attendance.records.correct", {
         record_id: draft.row.id,
@@ -5700,6 +5717,26 @@ var ErpAttendanceRecords = class extends i3 {
       await this.ctrl.load();
     } catch (e6) {
       this.patchCorrection({ saving: false, error: this.refusal(e6, "ui.records.saveFailed") });
+    }
+  }
+  /**
+   * attendance#12: the person's days that start before the corrected one ends, checked against the
+   * new times. Only a pre-check that names the reason: when the list cannot be read the
+   * correction still goes out and the server guard decides (its refusal is shown as usual).
+   */
+  async overlapsAnotherDay(row, clockIn, clockOut) {
+    const now = Date.now();
+    try {
+      const page = await erplora2().queryPage("attendance.records.list", {
+        limit: EXPORT_PAGE,
+        offset: 0,
+        sort: "clock_in_at",
+        dir: "desc",
+        filters: { user_id: row.user_id, clock_in_at: { to: clockOut ?? new Date(now).toISOString() } }
+      });
+      return overlapsOtherDay(page?.rows ?? [], row, clockIn, clockOut, now);
+    } catch {
+      return false;
     }
   }
   // Both modals render their content inside their OWN `div.ion-delegate-host.ion-page`: Ionic's

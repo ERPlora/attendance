@@ -284,7 +284,7 @@
         "n": 1,
         "error": "attendance.record_not_found",
         "statement": "commands/record_correct_log.sql",
-        "message": "The working day could not be corrected: it does not exist in this business, the clock-out is not after the clock-in, or reopening it would leave the person with two open days."
+        "message": "The working day could not be corrected: it does not exist in this business, the clock-out is not after the clock-in, the new hours overlap another working day of the same person, or reopening it would leave the person with two open days."
       },
       "emit": [
         "attendance.record.corrected"
@@ -315,10 +315,7 @@
       "sql": [
         "commands/_auto_review_stale.sql"
       ],
-      "schema": "schemas/empty.json",
-      "emit": [
-        "attendance.record.needs_review"
-      ]
+      "schema": "schemas/empty.json"
     }
   },
   "events": {
@@ -328,7 +325,6 @@
       "attendance.break.started",
       "attendance.break.ended",
       "attendance.record.corrected",
-      "attendance.record.needs_review",
       "attendance.settings.updated"
     ]
   },
@@ -367,7 +363,6 @@
       "refresh_on": [
         "attendance.clocked_in",
         "attendance.clocked_out",
-        "attendance.record.needs_review",
         "attendance.record.corrected"
       ],
       "map": {

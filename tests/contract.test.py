@@ -21,8 +21,9 @@ years, make it available to the worker and to the Labour Inspectorate):
   6. `clock_in`'s guard answers `attendance.clock_in_rejected`, and `records.correct`'s guard is
      anchored on the statement that writes the trail — so a correction can never be applied
      without its trail row.
-  7. The «Clocked in now» widget refreshes on every event that changes how many days are open:
-     clock in, clock out, the scheduled review and a correction.
+  7. The «Clocked in now» widget refreshes on every event that changes how many days are open and
+     the module emits: clock in, clock out and a correction — and listens to no event nobody sends.
+  8. THE SCHEDULED REVIEW EMITS NOTHING (attendance#13), and carries no row gate. See the case.
 
 Usage: tests/contract.test.py   (exit 0 = green)
 """
@@ -255,19 +256,54 @@ for key in ("name", "description"):
     )
 
 # 7. THE «CLOCKED IN NOW» WIDGET REFRESHES ON EVERY EVENT THAT MOVES THE COUNT. `presence.count`
-#    counts `open` days, and four events change that number: clocking in and out, the scheduled
-#    review (open → needs_review) and a correction (which can close a day or reopen one). A widget
-#    that misses one shows a stale count until the next clock-in.
+#    counts `open` days, and three emitted events change that number: clocking in and out and a
+#    correction (which can close a day or reopen one). A widget that misses one shows a stale count
+#    until the next clock-in. The scheduled review (open → needs_review) moves it too but emits
+#    nothing until the runtime can emit per flagged day (8, attendance#15).
 widget = (manifest.get("widgets") or {}).get("attendance.clocked_in_now") or {}
 for event in (
     "attendance.clocked_in",
     "attendance.clocked_out",
-    "attendance.record.needs_review",
     "attendance.record.corrected",
 ):
     check(
         event in (widget.get("refresh_on") or []),
         f"widget attendance.clocked_in_now must refresh on `{event}`: it changes how many days are open",
+    )
+emitted = {e if isinstance(e, str) else e.get("event") for c in manifest["commands"].values() for e in c.get("emit") or []}
+for event in widget.get("refresh_on") or []:
+    check(
+        event in emitted,
+        f"widget attendance.clocked_in_now listens to `{event}`, which no command of the module emits",
+    )
+
+# 8. attendance#13 — THE SCHEDULED REVIEW EMITS NOTHING. The runtime writes a command's `emit` once
+#    per EXECUTION, whether it touched rows or not, with the task's empty payload: on PRE
+#    `attendance.record.needs_review` went out every 15 minutes (96 a day) with nothing flagged and
+#    no record id, and it is offered as a trigger in the automations editor. The row gates cannot
+#    fix it in a scheduled task: `expect_rows`/`min_affected_rows` roll the run back, so the task
+#    does not advance and is retried with an error every 5 minutes (hub HUB-F62). Until the runtime
+#    can emit only when — and per row — something was flagged (hub#2612), the event does not exist:
+#    not emitted, not declared, not listened to by the screens (attendance#15 brings it back).
+task_command = next(
+    t["command"] for t in manifest.get("scheduled_tasks") or [] if t.get("name") == "auto_review_stale"
+)
+task = manifest["commands"][task_command]
+check(not task.get("emit"), f"attendance#13: `{task_command}` must not emit (one event per run, flagged or not), got {task.get('emit')}")
+check(
+    "expect_rows" not in task and "min_affected_rows" not in task,
+    f"attendance#13: `{task_command}` must carry no row gate: 0 rows is its normal run, and a gate would turn it into an error retried every 5 minutes",
+)
+check(
+    "attendance.record.needs_review" not in ((manifest.get("events") or {}).get("emits") or []),
+    "attendance#13: `attendance.record.needs_review` must not be offered in events.emits while nothing emits it",
+)
+for ts in sorted((MODULE_DIR / "ui").rglob("*.ts")):
+    if ts.name.endswith(".test.ts"):
+        continue
+    check(
+        "attendance.record.needs_review" not in ts.read_text(),
+        f"attendance#13: {ts.relative_to(MODULE_DIR)} listens to `attendance.record.needs_review`, which nothing emits",
     )
 
 if failures:
@@ -279,6 +315,6 @@ if failures:
 print(
     "✓ attendance contract: one open working day per person held by a unique index, nothing is "
     "ever deleted, every correction keeps old + new + reason, the device source is a closed enum, "
-    "location is off by default, the guards answer the right codes, and the presence widget "
-    "refreshes on every event that moves its count"
+    "location is off by default, the guards answer the right codes, the presence widget "
+    "refreshes on every emitted event that moves its count, and the scheduled review emits nothing"
 )

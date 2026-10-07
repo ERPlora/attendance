@@ -3,7 +3,11 @@
 -- needs_review every OPEN working day older than the hub's auto_close_after_hours (12 when the
 -- hub never saved its settings). It does not invent a clock-out: a manager closes the day with a
 -- correction. Freeing the open slot is what lets the person clock in again the next day.
--- 0 rows is the normal case, so this command has no guard.
+-- 0 rows is the normal case, so this command has no guard, and it EMITS NOTHING (attendance#13):
+-- the runtime writes a command's events once per run, flagged or not, so a declared event went
+-- out every 15 minutes with nothing flagged and no record id. A row gate is no way out either: it
+-- rolls the run back and the scheduler retries it with an error every 5 minutes. The per-day
+-- event comes back when the runtime can emit per affected row (hub#2612, attendance#15).
 UPDATE attendance_record
 SET status     = 'needs_review',
     updated_at = CAST(:now AS TEXT)

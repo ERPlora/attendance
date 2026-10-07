@@ -10,7 +10,17 @@
 --   * the new clock-out is not after the new clock-in (the UI checks first and shows its local
 --     string ui.records.invalidCorrection, this is the safety net),
 --   * the correction would REOPEN the day (no clock-out) while the same person already has
---     another open day: the one-open-day index would otherwise turn it into a 500.
+--     another open day: the one-open-day index would otherwise turn it into a 500,
+--   * the new times overlap ANOTHER working day of the same person (attendance#12): those minutes
+--     would count twice in the record and the CSV. The new day runs to its clock-out, or to now
+--     when it is reopened. The other day runs to its clock-out, to now when it is open, and is
+--     only its clock-in instant when it is needs_review (its end is unknown, and stretching it to
+--     now would block every later day of the person until a manager closes it). Touching is not
+--     overlapping: a day may start at the very instant the previous one ended. Compared by
+--     instant (erp_dt), never as text: the clock writes `+00:00` with nanoseconds, a correction
+--     writes `Z`. The new times are cast inside the subquery only through a CASE that checks
+--     pg_input_is_valid first: Postgres plans a subquery on its own and folds a constant
+--     `'2026-02-30'::timestamptz` there even when the outer CASE already said FALSE (a 500).
 INSERT INTO attendance_correction
   (id, hub_id, record_id,
    old_clock_in_at, old_clock_out_at, old_status,
@@ -28,9 +38,26 @@ WHERE r.hub_id = :hub_id
   AND r.is_deleted = 0
   AND CASE
         WHEN NOT pg_input_is_valid(CAST(:clock_in_at AS TEXT), 'timestamptz') THEN FALSE
-        WHEN CAST(:clock_out_at AS TEXT) IS NULL THEN TRUE
-        WHEN NOT pg_input_is_valid(CAST(:clock_out_at AS TEXT), 'timestamptz') THEN FALSE
-        ELSE erp_dt(CAST(:clock_out_at AS TEXT)) > erp_dt(CAST(:clock_in_at AS TEXT))
+        WHEN CAST(:clock_out_at AS TEXT) IS NOT NULL
+             AND NOT pg_input_is_valid(CAST(:clock_out_at AS TEXT), 'timestamptz') THEN FALSE
+        WHEN CAST(:clock_out_at AS TEXT) IS NOT NULL
+             AND erp_dt(CAST(:clock_out_at AS TEXT)) <= erp_dt(CAST(:clock_in_at AS TEXT)) THEN FALSE
+        ELSE NOT EXISTS (
+               SELECT 1
+                 FROM attendance_record d
+                WHERE d.hub_id = :hub_id
+                  AND d.user_id = r.user_id
+                  AND d.id <> r.id
+                  AND d.is_deleted = 0
+                  AND erp_dt(d.clock_in_at)
+                      < erp_dt(CASE WHEN pg_input_is_valid(COALESCE(CAST(:clock_out_at AS TEXT),
+                                                                    CAST(:now AS TEXT)), 'timestamptz')
+                                    THEN COALESCE(CAST(:clock_out_at AS TEXT), CAST(:now AS TEXT)) END)
+                  AND erp_dt(COALESCE(d.clock_out_at,
+                                      CASE WHEN d.status = 'open' THEN CAST(:now AS TEXT)
+                                           ELSE d.clock_in_at END))
+                      > erp_dt(CASE WHEN pg_input_is_valid(CAST(:clock_in_at AS TEXT), 'timestamptz')
+                                    THEN CAST(:clock_in_at AS TEXT) END))
       END
   AND (CAST(:clock_out_at AS TEXT) IS NOT NULL
        OR NOT EXISTS (

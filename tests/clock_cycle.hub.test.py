@@ -14,7 +14,8 @@ and that the queries come back through the list engine with the columns the scre
   3. `settings.update` + `settings.get` round-trip, and with location required a personal device
      that did not measure is refused while the shared POS clocks in.
   4. `records.correct` with a reason rewrites the day and `corrections.list` shows the trail; a
-     clock-out before the clock-in is refused with `attendance.record_not_found`.
+     clock-out before the clock-in is refused with `attendance.record_not_found`, and so is one
+     that overlaps another working day of the same person (attendance#12).
   5. `presence.count` counts whoever is clocked in now.
   6. An EMPLOYEE (the permission set `role_permissions.employee` grants, sent as `X-Permissions`:
      dev auth cannot attach a role, see `hub_harness`) clocks its own day, but the kernel refuses
@@ -245,6 +246,53 @@ def test_correction_trail(hub: Hub, record_id: str) -> None:
     hub.check_true("…and the old one", bool(entry.get("old_clock_out_at")), entry)
 
 
+def test_correction_overlap(hub: Hub) -> None:
+    print("\n4b · a correction cannot overlap another working day of the same person (attendance#12)")
+    hub.as_user(new_user())
+    hub.run("attendance.clock_in", {"source": "shared"})
+    hub.run("attendance.clock_out", {})
+    hub.run("attendance.clock_in", {"source": "shared"})
+    hub.run("attendance.clock_out", {})
+    days = sorted(hub.query("attendance.records.mine"), key=lambda d: d.get("clock_in_at") or "")
+    hub.check("two closed days for the same person", [d.get("status") for d in days], ["closed", "closed"])
+    if len(days) != 2:
+        return
+    first, second = days
+    # The runtime wrote both days with `…+00:00` and nanoseconds; the correction sends `…Z`.
+    hub.refused(
+        "moving the second day over the first one",
+        "attendance.records.correct",
+        {
+            "record_id": second["id"],
+            "clock_in_at": "2020-01-01T00:00:00Z",
+            "clock_out_at": "2099-01-01T00:00:00Z",
+            "reason": "Overlap check (attendance#12)",
+        },
+        "attendance.record_not_found",
+    )
+    hub.check(
+        "the refused overlap left no trail",
+        hub.query("attendance.corrections.list", {"f_record_id": second["id"]}),
+        [],
+    )
+    after = (hub.query("attendance.records.get", {"record_id": second["id"]}) or [{}])[0]
+    hub.check("…and the day as it was", after.get("clock_in_at"), second.get("clock_in_at"))
+    hub.run(
+        "attendance.records.correct",
+        {
+            "record_id": first["id"],
+            "clock_in_at": "2026-10-01T08:00:00Z",
+            "clock_out_at": "2026-10-01T16:00:00Z",
+            "reason": "Belongs to the first of the month (attendance#12 control)",
+        },
+    )
+    hub.check(
+        "a correction that overlaps nothing is still applied",
+        len(hub.query("attendance.corrections.list", {"f_record_id": first["id"]})),
+        1,
+    )
+
+
 def test_presence(hub: Hub) -> None:
     print("\n5 · presence.count counts whoever is clocked in now")
     hub.as_user(new_user())
@@ -331,6 +379,7 @@ def main() -> int:
     test_refusals(hub)
     test_settings_and_geofence(hub)
     test_correction_trail(hub, record_id)
+    test_correction_overlap(hub)
     test_presence(hub)
     test_employee_permissions(hub, record_id)
     return hub.finish(

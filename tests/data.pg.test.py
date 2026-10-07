@@ -54,6 +54,8 @@ HUB = "hub-a"
 OTHER_HUB = "hub-b"
 # A third hub for the cases added after the main story, so they cannot shift its counts.
 THIRD_HUB = "hub-c"
+# Its own hub for the overlap cases (attendance#12): nothing above can shift what they see.
+OVERLAP_HUB = "hub-d"
 TZ = "Europe/Madrid"
 
 # Binds the runtime injects itself, always present and typed TEXT (`system_params`).
@@ -897,6 +899,86 @@ try:
               f"impossible date ({bad_in}, {bad_out}) must answer attendance.record_not_found, got ok={ok} code={code}")
     check(rows(f"SELECT COUNT(*) FROM attendance_correction WHERE record_id = '{hugo_id}'") == trail_before,
           "an impossible date leaves no trail row")
+
+    # --- hub-d · a correction cannot overlap another working day of the same person -----------
+    # attendance#12: on a real PRE hub a correction stored 12:53 → 15:30 over another day of the
+    # same person (15:00 → 15:01), so those minutes counted twice in the record and the CSV. Days
+    # written by the clock carry the runtime's `…+00:00` with nanoseconds and corrections carry
+    # `…Z`, so the comparison must be by instant, never by text.
+    def day_of(hub: str, record_id: str) -> list[list[str]]:
+        return rows(f"SELECT clock_in_at, clock_out_at, status FROM attendance_record "
+                    f"WHERE hub_id = '{hub}' AND id = '{record_id}'")
+
+    def trail_of(record_id: str) -> int:
+        return int(rows(f"SELECT COUNT(*) FROM attendance_correction WHERE record_id = '{record_id}'")[0][0])
+
+    def correct(record_id: str, clock_in: str, clock_out: str | None, now: str) -> tuple[bool, str | None]:
+        return run_command(
+            "attendance.records.correct",
+            {"record_id": record_id, "clock_in_at": clock_in, "clock_out_at": clock_out,
+             "reason": "Overlap check (attendance#12)"},
+            OVERLAP_HUB, "boss-d", now,
+        )
+
+    def worked(person: str, clock_in: str, clock_out: str) -> str:
+        ok, code = run_command("attendance.clock_in", {"source": "shared"}, OVERLAP_HUB, person, clock_in)
+        check(ok, f"{person} clocks in at hub-d, got {code}")
+        ok, code = run_command("attendance.clock_out", {}, OVERLAP_HUB, person, clock_out)
+        check(ok, f"{person} clocks out at hub-d, got {code}")
+        return rows(f"SELECT id FROM attendance_record WHERE hub_id = '{OVERLAP_HUB}' "
+                    f"AND user_id = '{person}' ORDER BY clock_in_at DESC LIMIT 1")[0][0]
+
+    # ines: day A 08:00 → 09:00 (runtime form), day B 10:00 → 11:00. joan: 08:30 → 09:30.
+    ines_a = worked("ines", "2026-10-06T08:00:00.123456789+00:00", "2026-10-06T09:00:00.000000001+00:00")
+    ines_b = worked("ines", "2026-10-06T10:00:00.5+00:00", "2026-10-06T11:00:00.5+00:00")
+    worked("joan", "2026-10-06T08:30:00+00:00", "2026-10-06T09:30:00+00:00")
+    b_before = day_of(OVERLAP_HUB, ines_b)
+
+    ok, code = correct(ines_b, "2026-10-06T08:30:00.000Z", "2026-10-06T11:00:00.000Z", at(600))
+    check(not ok and code == "attendance.record_not_found",
+          f"attendance#12: a correction overlapping another day of the same person must be refused, "
+          f"got ok={ok} code={code}")
+    ok, code = correct(ines_b, "2026-10-06T07:00:00.000Z", "2026-10-06T12:00:00.000Z", at(600))
+    check(not ok and code == "attendance.record_not_found",
+          f"attendance#12: a correction that swallows another day of the same person must be refused, "
+          f"got ok={ok} code={code}")
+    check(trail_of(ines_b) == 0, "attendance#12: a refused overlapping correction leaves NO trail row")
+    check(day_of(OVERLAP_HUB, ines_b) == b_before,
+          "attendance#12: a refused overlapping correction changes nothing")
+
+    # Reopening B (no clock-out) runs it up to now, over a later closed day: refused too.
+    ok, code = correct(ines_a, "2026-10-06T08:00:00.000Z", None, at(600))
+    check(not ok and code == "attendance.record_not_found",
+          f"attendance#12: reopening a day that would run over a later day of the same person must be "
+          f"refused, got ok={ok} code={code}")
+
+    # Touching is not overlapping: B may start at the very instant A ended. It also overlaps joan's
+    # day, and another person's day never blocks.
+    ok, code = correct(ines_b, "2026-10-06T09:00:00.000Z", "2026-10-06T11:00:00.000Z", at(600))
+    check(ok, f"attendance#12: a day that starts when the previous one ended (and overlaps only another "
+              f"person's day) is accepted, got {code}")
+
+    # An OPEN day of the same person counts up to now.
+    ok, code = run_command("attendance.clock_in", {"source": "shared"}, OVERLAP_HUB, "ines", "2026-10-06T13:00:00+00:00")
+    check(ok, f"ines opens a third day, got {code}")
+    ok, code = correct(ines_b, "2026-10-06T10:00:00.000Z", "2026-10-06T13:30:00.000Z", "2026-10-06T14:00:00+00:00")
+    check(not ok and code == "attendance.record_not_found",
+          f"attendance#12: a correction running into the person's OPEN day must be refused, got ok={ok} code={code}")
+    ok, code = correct(ines_b, "2026-10-06T10:00:00.000Z", "2026-10-06T12:59:00.000Z", "2026-10-06T14:00:00+00:00")
+    check(ok, f"attendance#12: a correction that ends before the open day starts is accepted, got {code}")
+
+    # A needs_review day has no clock-out: it is not stretched to now (that would block every later
+    # day of the person until a manager closes it), only its clock-in instant is taken.
+    ok, code = run_command("attendance.clock_in", {"source": "shared"}, OVERLAP_HUB, "kai", "2026-10-06T08:00:00+00:00")
+    check(ok, f"kai clocks in at hub-d, got {code}")
+    run_command("attendance._auto_review_stale", {}, OVERLAP_HUB, "", "2026-10-06T20:01:00+00:00")
+    kai_late = worked("kai", "2026-10-06T21:00:00+00:00", "2026-10-06T22:00:00+00:00")
+    ok, code = correct(kai_late, "2026-10-06T20:30:00.000Z", "2026-10-06T22:00:00.000Z", "2026-10-06T23:00:00+00:00")
+    check(ok, f"attendance#12: a needs_review day without clock-out does not block a later day, got {code}")
+    ok, code = correct(kai_late, "2026-10-06T07:30:00.000Z", "2026-10-06T22:00:00.000Z", "2026-10-06T23:00:00+00:00")
+    check(not ok and code == "attendance.record_not_found",
+          f"attendance#12: a correction covering the clock-in of the person's needs_review day must be "
+          f"refused, got ok={ok} code={code}")
 
     # --- settings: created on first save, then updated in place --------------------------------
     settings = query("attendance.settings.get", {}, HUB)

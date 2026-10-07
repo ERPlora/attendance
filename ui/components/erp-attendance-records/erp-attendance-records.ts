@@ -11,6 +11,7 @@ import enLocale from '../../../locales/en.json';
 import { breakMinutes, formatHm, runningBreaksFrom, workedMinutes } from './minutes';
 import type { BreakRow } from './minutes';
 import { csvFileName, toCsv } from './csv';
+import { overlapsOtherDay } from './overlap';
 import type { CsvRecord } from './csv';
 import { readSession, sessionCan } from '../../lib/permissions';
 import type { SessionLike } from '../../lib/permissions';
@@ -105,13 +106,14 @@ const STATUSES = ['open', 'closed', 'needs_review'] as const;
 const STATUS_COLOR: Record<string, string> = { open: 'primary', closed: 'medium', needs_review: 'warning' };
 // Inline on purpose: an open ion-modal is moved to <body>, out of reach of this component's CSS.
 const MODAL_ERROR_STYLE = 'color: var(--ion-color-danger, #c5000f); font-weight: 600';
+// The scheduled review (open → needs_review) emits nothing until the runtime can emit per flagged
+// day (attendance#13, attendance#15): a flagged day shows up on the next reload or event.
 const LIVE_EVENTS = [
   'attendance.clocked_in',
   'attendance.clocked_out',
   'attendance.break.started',
   'attendance.break.ended',
   'attendance.record.corrected',
-  'attendance.record.needs_review',
 ];
 
 export class ErpAttendanceRecords extends LitElement {
@@ -488,6 +490,9 @@ export class ErpAttendanceRecords extends LitElement {
     if (reason.length < 3) return this.patchCorrection({ error: this.t('ui.records.reasonRequired') });
 
     this.patchCorrection({ saving: true, error: '' });
+    if (await this.overlapsAnotherDay(row, clockIn, clockOut)) {
+      return this.patchCorrection({ saving: false, error: this.t('ui.records.overlapsOtherDay') });
+    }
     try {
       await erplora().command('attendance.records.correct', {
         record_id: draft.row.id,
@@ -500,6 +505,27 @@ export class ErpAttendanceRecords extends LitElement {
       await this.ctrl.load();
     } catch (e) {
       this.patchCorrection({ saving: false, error: this.refusal(e, 'ui.records.saveFailed') });
+    }
+  }
+
+  /**
+   * attendance#12: the person's days that start before the corrected one ends, checked against the
+   * new times. Only a pre-check that names the reason: when the list cannot be read the
+   * correction still goes out and the server guard decides (its refusal is shown as usual).
+   */
+  private async overlapsAnotherDay(row: RecordRow, clockIn: string, clockOut: string | null): Promise<boolean> {
+    const now = Date.now();
+    try {
+      const page = await erplora().queryPage<RecordRow>('attendance.records.list', {
+        limit: EXPORT_PAGE,
+        offset: 0,
+        sort: 'clock_in_at',
+        dir: 'desc',
+        filters: { user_id: row.user_id, clock_in_at: { to: clockOut ?? new Date(now).toISOString() } },
+      });
+      return overlapsOtherDay(page?.rows ?? [], row, clockIn, clockOut, now);
+    } catch {
+      return false;
     }
   }
 
