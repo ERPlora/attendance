@@ -14,6 +14,10 @@ Two facts of the runtime a battery has to know, both resolved here:
   * THE SESSION USER. Dev auth trusts `X-User-Id`. Each run mints its own users, because batteries
     share one hub for the length of the run — and `attendance` keys everything on the session
     user (`:current_user_id`), so a fresh user per scenario is a fresh clock.
+  * THE SESSION PERMISSIONS. Dev auth has no role to resolve: it trusts `X-Permissions` (a comma
+    list) and, without the header, grants `*`. So a ROLE cannot be attached to a dev user — what a
+    battery CAN attach is the permission set that role resolves to (`as_user(…, permissions=…)`,
+    read from the manifest's `role_permissions`), which is what the kernel gates on.
 
 It refuses to skip. Without a runtime a battery FAILS: a check that excuses itself is the green that
 proves nothing (module-toolkit#50).
@@ -54,27 +58,30 @@ class Hub:
             )
             sys.exit(1)
         self.user = new_user()
+        self.permissions: list[str] | None = None
         self.hub_id = self._runtime_hub_id()
         self._require_installed(needs)
 
     # ── transport ────────────────────────────────────────────────────────────────────────
 
-    def as_user(self, user: str) -> "Hub":
-        """Every request from now on goes out as `user` (dev auth trusts `X-User-Id`)."""
+    def as_user(self, user: str, permissions: list[str] | None = None) -> "Hub":
+        """Every request from now on goes out as `user` (dev auth trusts `X-User-Id`) holding
+        `permissions` (`X-Permissions`); `None` sends no header, which dev auth reads as `*`."""
         self.user = user
+        self.permissions = permissions
         return self
 
     def _request(self, method: str, path: str, body=None):
         data = None if body is None else json.dumps(body).encode()
+        headers = {
+            "content-type": "application/json",
+            "x-hub-id": self.hub_id,
+            "x-user-id": self.user,
+        }
+        if self.permissions is not None:
+            headers["x-permissions"] = ",".join(self.permissions)
         req = urllib.request.Request(
-            f"{BASE}{path}",
-            data=data,
-            headers={
-                "content-type": "application/json",
-                "x-hub-id": self.hub_id,
-                "x-user-id": self.user,
-            },
-            method=method,
+            f"{BASE}{path}", data=data, headers=headers, method=method
         )
         try:
             with urllib.request.urlopen(req, timeout=60) as res:
@@ -170,6 +177,27 @@ class Hub:
             )
         else:
             print(f"  ok: {label} refused with `{code}` (HTTP {status})")
+
+    def denied(
+        self, label: str, door: str, name: str, body: dict, codes: tuple[str, ...]
+    ) -> None:
+        """A query (`door="query"`) or command (`door="command"`) the session may NOT run: HTTP 403
+        with one of `codes`. A command a manager could approve answers `requires_elevation` on a
+        hub with hub#360 and `permission_denied` on an older one; a query is always the latter."""
+        key = "params" if door == "query" else "payload"
+        status, answer = self._request("POST", f"/api/{door}", {"name": name, key: body})
+        got = (
+            ((answer or {}).get("error") or {}).get("code")
+            if isinstance(answer, dict)
+            else None
+        )
+        if status == 403 and got in codes:
+            print(f"  ok: {label} denied with `{got}` (HTTP 403)")
+            return
+        self.failures.append(
+            f"{label} — expected HTTP 403 with one of {list(codes)}, got HTTP {status} [{got}]: {answer}"
+        )
+        print(f"  FAIL: {label} — expected 403 {list(codes)}, got HTTP {status} [{got}]")
 
     # ── bookkeeping ──────────────────────────────────────────────────────────────────────
 

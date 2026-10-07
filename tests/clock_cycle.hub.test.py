@@ -16,6 +16,9 @@ and that the queries come back through the list engine with the columns the scre
   4. `records.correct` with a reason rewrites the day and `corrections.list` shows the trail; a
      clock-out before the clock-in is refused with `attendance.record_not_found`.
   5. `presence.count` counts whoever is clocked in now.
+  6. An EMPLOYEE (the permission set `role_permissions.employee` grants, sent as `X-Permissions`:
+     dev auth cannot attach a role, see `hub_harness`) clocks its own day, but the kernel refuses
+     it the team's data, the correction and the settings save — and a manager's set opens them.
 
 Usage: `erplora test <dir> --against-hub [dev|stable|sha256:…]` (module-toolkit#110). Never on its
 own: without a runtime it fails, it does not skip.
@@ -23,10 +26,16 @@ own: without a runtime it fails, it does not skip.
 
 from __future__ import annotations
 
+import json
+import pathlib
 import sys
 
 import hub_harness
 from hub_harness import Hub, new_user
+
+ROLES = json.loads(
+    (pathlib.Path(__file__).resolve().parent.parent / "module.json").read_text()
+)["role_permissions"]
 
 LOCATION_OFF = {
     "require_location": 0,
@@ -248,6 +257,71 @@ def test_presence(hub: Hub) -> None:
     hub.check("back to where it was after clocking out", after, before)
 
 
+def test_employee_permissions(hub: Hub, record_id: str) -> None:
+    print("\n6 · an employee clocks its own day and nothing of anybody else's")
+    # The trail of the day corrected in 4, read with full permissions, to prove the refused
+    # correction below wrote nothing.
+    hub.as_user(new_user())
+    trail_before = len(
+        hub.query("attendance.corrections.list", {"f_record_id": record_id})
+    )
+    settings_before = hub.query("attendance.settings.get")
+
+    hub.as_user(new_user(), permissions=ROLES["employee"])
+    hub.run("attendance.clock_in", {"source": "shared"})
+    hub.check("the employee sees its open day", len(hub.query("attendance.records.mine_open")), 1)
+    hub.check_true("…reads the settings", isinstance(hub.query("attendance.settings.get"), list))
+    hub.check("…and lists its own days", len(hub.query("attendance.records.mine")), 1)
+    hub.run("attendance.break_start", {})
+    hub.check("…and its own breaks", len(hub.query("attendance.breaks.mine")), 1)
+    hub.run("attendance.break_end", {})
+
+    for name, params in (
+        ("attendance.records.list", {}),
+        ("attendance.records.get", {"record_id": record_id}),
+        ("attendance.breaks.list", {}),
+        ("attendance.corrections.list", {"f_record_id": record_id}),
+        ("attendance.presence.count", {}),
+    ):
+        hub.denied(f"employee reading `{name}`", "query", name, params, ("permission_denied",))
+    elevable = ("requires_elevation", "permission_denied")
+    hub.denied(
+        "employee correcting a day",
+        "command",
+        "attendance.records.correct",
+        {
+            "record_id": record_id,
+            "clock_in_at": "2026-10-06T06:00:00Z",
+            "clock_out_at": "2026-10-06T07:00:00Z",
+            "reason": "An employee rewriting a day",
+        },
+        elevable,
+    )
+    hub.denied(
+        "employee saving the settings",
+        "command",
+        "attendance.settings.update",
+        {**LOCATION_OFF, "auto_close_after_hours": 3},
+        elevable,
+    )
+    hub.run("attendance.clock_out", {})
+
+    hub.as_user(new_user(), permissions=ROLES["manager"])
+    hub.check_true(
+        "a manager's set reads the team", isinstance(hub.query("attendance.records.list"), list)
+    )
+    hub.check(
+        "the refused correction left the trail as it was",
+        len(hub.query("attendance.corrections.list", {"f_record_id": record_id})),
+        trail_before,
+    )
+    hub.check(
+        "the refused save left the settings as they were",
+        hub.query("attendance.settings.get"),
+        settings_before,
+    )
+
+
 def main() -> int:
     hub = Hub("clock_cycle.hub")
     print(
@@ -258,6 +332,7 @@ def main() -> int:
     test_settings_and_geofence(hub)
     test_correction_trail(hub, record_id)
     test_presence(hub)
+    test_employee_permissions(hub, record_id)
     return hub.finish(
         "the working-day cycle behaves as the spec promises, against the real kernel"
     )
