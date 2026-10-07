@@ -45,7 +45,7 @@
     "attendance.no_open_record": "There is no open working day to clock out of.",
     "attendance.break_rejected": "Could not start a break: there is no open working day or a break is already running.",
     "attendance.no_open_break": "There is no running break to end.",
-    "attendance.record_not_found": "The working day could not be corrected: it does not exist, the clock-out is not after the clock-in, or reopening it would leave the person with two open days.",
+    "attendance.record_not_found": "The working day could not be corrected: it does not exist, the clock-out is not after the clock-in, the hours overlap another working day of this person, or reopening it would leave the person with two open days.",
     "attendance.settings_not_saved": "The time clock settings could not be saved. Try again in a moment."
   },
   "ui": {
@@ -129,6 +129,7 @@
       "close": "Close",
       "invalidClockIn": "Enter the clock-in date and time.",
       "invalidCorrection": "The clock-out must be after the clock-in.",
+      "overlapsOtherDay": "These hours overlap another working day of this person.",
       "reasonRequired": "Write a reason of at least 3 characters.",
       "corrected": "Working day corrected.",
       "saveFailed": "The correction could not be saved. Try again.",

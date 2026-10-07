@@ -479,6 +479,46 @@ describe('correcting a working day', () => {
     expect(commands[0]?.payload.clock_out_at).toBe('2026-10-05T15:30:00.000Z');
   });
 
+  it('attendance#12: hours that overlap another day of the same person are refused on screen and never sent', async () => {
+    // rec-101 is user-gone's day of the 5th, 09:02 → 17:05 local. That person worked again from
+    // 18:00 to 20:00 local (16:00 → 18:00 UTC), and the manager drags the clock-out over it.
+    const later = {
+      ...ROWS[1], id: 'rec-102', clock_in_at: '2026-10-05T16:00:00.123456789+00:00',
+      clock_out_at: '2026-10-05T18:00:00.000000001+00:00',
+    };
+    session('manager', MANAGER);
+    pageAnswer = async (name) => {
+      if (name.startsWith('attendance.breaks.')) return { rows: [], total: 0, limit: 500, offset: 0 };
+      return { rows: [later, ...ROWS], total: 3, limit: 50, offset: 0 };
+    };
+    const el = await mount();
+    find(el, 'attendance-correct-rec-101')!.click();
+    await settle(el);
+    const before = pages.length;
+    type(el, 'attendance-correct-clock-out', '2026-10-05T19:00');
+    type(el, 'attendance-correct-reason', 'Left later than clocked');
+    find(el, 'attendance-correct-save')!.click();
+    await settle(el);
+    expect(commands).toEqual([]);
+    expect(find(el, 'attendance-correct-error')?.textContent).toContain('ui.records.overlapsOtherDay');
+    // It asked for THAT person's days only, up to the new clock-out.
+    const lookup = pages.slice(before).find((p) => p.name === 'attendance.records.list');
+    expect(lookup?.params.filters?.user_id).toBe('user-gone');
+    expect(lookup?.params.filters?.clock_in_at).toEqual({ to: '2026-10-05T17:00:00.000Z' });
+  });
+
+  it('attendance#12: when the day list cannot be read, the correction still goes to the server (it has the last word)', async () => {
+    const el = await openCorrection();
+    pageAnswer = async () => {
+      throw new Error('offline');
+    };
+    type(el, 'attendance-correct-clock-out', '2026-10-05T17:30');
+    type(el, 'attendance-correct-reason', 'Left later than clocked');
+    find(el, 'attendance-correct-save')!.click();
+    await settle(el);
+    expect(commands.map((c) => c.name)).toEqual(['attendance.records.correct']);
+  });
+
   it('a missing reason is refused on screen and never sent', async () => {
     const el = await openCorrection();
     type(el, 'attendance-correct-reason', ' x ');

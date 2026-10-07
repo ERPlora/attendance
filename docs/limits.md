@@ -36,6 +36,16 @@
   (attendance#8).
 - **A forgotten clock-out is flagged, not guessed.** The day becomes **needs review**; no
   clock-out time is invented. A manager sets it with a correction.
+- **No alert when a day is flagged for review.** The 15-minute check marks the day silently: there
+  is no event to start an automation from («when a day needs review → tell the manager»), and the
+  «Clocked in now» widget and the records screen catch up on the next clock-in, clock-out or
+  correction, or when reopened. The Hub cannot yet send an event only for the days a check
+  actually flags; until it can (hub#2612, attendance#15) the module sends none rather than one
+  every 15 minutes with nothing in it (attendance#13).
+- **A correction cannot overlap another working day of the same person.** The new hours may touch
+  another day (start the instant it ended) but not run into it; an open day counts up to now, and a
+  day that needs review counts only at its clock-in. The screen says so before saving
+  (attendance#12).
 
 ## Refusals you will see
 
@@ -45,5 +55,5 @@
 | Clocking out with no open working day | `attendance.no_open_record` | Nothing to close; check the records list |
 | Starting a break with no open day, or with a break already running | `attendance.break_rejected` | Clock in first, or end the running break |
 | Ending a break when none is running | `attendance.no_open_break` | Nothing to end |
-| Correcting a day that does not exist, with a clock-out not after the clock-in, or reopening it while the person has another open day | `attendance.record_not_found` | Check the times; close the other open day first |
+| Correcting a day that does not exist, with a clock-out not after the clock-in, with hours that overlap another working day of the same person, or reopening it while the person has another open day | `attendance.record_not_found` | Check the times against the person's other days; close the other open day first |
 | Saving the settings fails | `attendance.settings_not_saved` | Try again |

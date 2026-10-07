@@ -10,7 +10,8 @@ One row per working day (`attendance_record`), the session model used by Odoo, S
 - **closed** — clocked out, or closed by a correction.
 - **needs_review** — still open after the configured number of hours (12 by default): the person
   probably forgot to clock out. It no longer blocks clocking in again; a manager closes it with a
-  correction. The check runs every 15 minutes.
+  correction. The check runs every 15 minutes and sends no event (see Limits: the Hub cannot yet
+  send one only for the days it flags).
 
 Working days are never deleted: there is no delete action, as the law asks for four years of
 records.
@@ -29,6 +30,12 @@ correction is a new, immutable row with the **old** values, the **new** values, 
 (mandatory), who made it and when. A correction whose clock-out is not after its clock-in is
 refused and leaves no trace. Reopening a day (no clock-out) is refused while the same person
 already has another open day.
+
+A correction cannot make two working days of the same person overlap, or those minutes would count
+twice in the record and the CSV. The corrected day runs from its new clock-in to its new clock-out
+(to now when it is reopened); another day runs to its clock-out, to now while it is open, and only
+its clock-in counts for a day that needs review (its end is unknown). Touching is allowed: a day can
+start at the very instant the previous one ended. Days of other people never block.
 
 ## Device source
 
