@@ -28,6 +28,8 @@ let failLoad: boolean;
 let command: ReturnType<typeof vi.fn>;
 let query: ReturnType<typeof vi.fn>;
 let geoAnswer: { lat: number; lng: number; accuracy: number } | { error: number } | undefined;
+/** What the shell's SDK answers `hasPermission` from; a manager's set unless a test says otherwise. */
+let granted: string[];
 
 function installGeolocation(): void {
   const geo = {
@@ -46,6 +48,7 @@ function installGeolocation(): void {
 beforeEach(() => {
   rows = [];
   failLoad = false;
+  granted = ['attendance.clock', 'attendance.view_all', 'attendance.correct', 'attendance.manage_settings'];
   geoAnswer = undefined;
   installGeolocation();
   query = vi.fn(async (name: string) => {
@@ -57,6 +60,7 @@ beforeEach(() => {
   (globalThis as Record<string, unknown>).erplora = {
     query,
     command,
+    hasPermission: (p: string) => granted.includes('*') || granted.includes(p),
     on: () => () => {},
     locale: 'en',
     timezone: 'Europe/Madrid',
@@ -65,6 +69,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   document.body.innerHTML = '';
   Object.defineProperty(globalThis.navigator, 'geolocation', { value: undefined, configurable: true });
 });
@@ -285,6 +290,56 @@ describe('erp-attendance-settings — the missing-workplace warning', () => {
     expect(byId(el, 'attendance-settings-location-warning')).toBeNull();
     await choose(el, 'attendance-settings-require-location', { checked: true });
     expect(byId(el, 'attendance-settings-location-warning')).not.toBeNull();
+  });
+});
+
+const FIELDS = [
+  'attendance-settings-require-location',
+  'attendance-settings-radius',
+  'attendance-settings-lat',
+  'attendance-settings-lng',
+  'attendance-settings-auto-close',
+];
+
+describe('erp-attendance-settings — only attendance.manage_settings can change them', () => {
+  it('an employee sees the settings read-only: fields disabled, no Save, no locate, one info line', async () => {
+    granted = ['attendance.clock'];
+    rows = [SAVED];
+    const el = await mount();
+    for (const id of FIELDS) {
+      expect(byId(el, id), `${id} is still shown`).not.toBeNull();
+      expect(byId(el, id)!.hasAttribute('disabled'), `${id} is disabled`).toBe(true);
+    }
+    expect(byId(el, 'attendance-settings-save')).toBeNull();
+    expect(byId(el, 'attendance-use-my-location')).toBeNull();
+    expect(byId(el, 'attendance-settings-read-only')?.textContent?.trim()).toBe(en('ui.settings.readOnly'));
+    expect(byId(el, 'attendance-settings-lat')?.value).toBe('40.416775');
+    expect(command).not.toHaveBeenCalled();
+  });
+
+  it('a manager can edit and save, with no read-only line', async () => {
+    const el = await mount();
+    for (const id of FIELDS) expect(byId(el, id)!.hasAttribute('disabled'), `${id} is enabled`).toBe(false);
+    expect(byId(el, 'attendance-settings-save')).not.toBeNull();
+    expect(byId(el, 'attendance-use-my-location')).not.toBeNull();
+    expect(byId(el, 'attendance-settings-read-only')).toBeNull();
+  });
+
+  it('admin and owner (the shell grants them `*`) can edit', async () => {
+    granted = ['*'];
+    const el = await mount();
+    expect(byId(el, 'attendance-settings-save')).not.toBeNull();
+  });
+
+  it('an SDK without hasPermission falls back to the session the shell stored', async () => {
+    const store = new Map<string, string>([
+      ['erplora.session', JSON.stringify({ id: 'u-1', role: 'employee', permissions: ['attendance.clock'] })],
+    ]);
+    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: () => {}, removeItem: () => {} });
+    delete (globalThis as { erplora: Record<string, unknown> }).erplora.hasPermission;
+    const el = await mount();
+    expect(byId(el, 'attendance-settings-save')).toBeNull();
+    expect(byId(el, 'attendance-settings-read-only')).not.toBeNull();
   });
 });
 

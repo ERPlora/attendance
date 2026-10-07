@@ -12,6 +12,8 @@ import { breakMinutes, formatHm, runningBreaksFrom, workedMinutes } from './minu
 import type { BreakRow } from './minutes';
 import { csvFileName, toCsv } from './csv';
 import type { CsvRecord } from './csv';
+import { readSession, sessionCan } from '../../lib/permissions';
+import type { SessionLike } from '../../lib/permissions';
 import { fromLocalInput, localDate, localDateTime, localTime, monthOf, monthRange, recentMonths, toLocalInput } from './zone';
 
 // The «Records» screen of the time clock (spec §6): the working days of the caller, or of the whole
@@ -35,6 +37,7 @@ interface ErploraClientLike extends ListClient {
   t(catalog: Record<string, unknown>, key: string, params?: Record<string, unknown>): string;
   notify?(n: Notice): void;
   on?(event: string, cb: (payload: unknown) => void): () => void;
+  hasPermission?(permission: string): boolean;
 }
 
 interface RecordRow extends CsvRecord {
@@ -82,33 +85,10 @@ interface HistoryView {
   items: CorrectionRow[];
 }
 
-interface SessionLike {
-  id?: string;
-  name?: string;
-  role?: string;
-  permissions?: unknown;
-}
-
 function erplora(): ErploraClientLike {
   const c = (globalThis as { erplora?: ErploraClientLike }).erplora;
   if (!c) throw new Error('erplora SDK is not initialised by the shell');
   return c;
-}
-
-function readSession(): SessionLike {
-  try {
-    return (JSON.parse(localStorage.getItem('erplora.session') ?? 'null') as SessionLike) ?? {};
-  } catch {
-    return {};
-  }
-}
-
-/** UI-only permission check (the runtime re-checks every call): admin/owner hold every permission. */
-function sessionCan(session: SessionLike, permission: string): boolean {
-  const role = String(session.role ?? '').toLowerCase();
-  if (role === 'admin' || role === 'owner') return true;
-  const perms = Array.isArray(session.permissions) ? (session.permissions as unknown[]) : [];
-  return perms.includes('*') || perms.includes(permission);
 }
 
 /** `hub.users.list` answers an array; a list envelope is accepted too. */
@@ -208,8 +188,8 @@ export class ErpAttendanceRecords extends LitElement {
 
   private init(): void {
     this.session = readSession();
-    this.team = sessionCan(this.session, 'attendance.view_all');
-    this.canCorrect = sessionCan(this.session, 'attendance.correct');
+    this.team = sessionCan(erplora(), this.session, 'attendance.view_all');
+    this.canCorrect = sessionCan(erplora(), this.session, 'attendance.correct');
     this.month = monthOf(Date.now(), this.timezone);
     const opts = {
       pageSize: 50,

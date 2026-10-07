@@ -288,6 +288,40 @@ describe('erp-attendance-clock — the workplace radius on a personal device', (
   });
 });
 
+describe('erp-attendance-clock — the device mode is read again on the tap', () => {
+  // The shell resolves the mode asynchronously (hub#2584): what the screen read at mount can be
+  // stale by the time somebody taps, so the tap reads it again and that answer is what is sent.
+  it('a device that turned personal after mount clocks in as personal', async () => {
+    world.mode = 'shared';
+    const el = await mount();
+    world.mode = 'personal';
+    await press(el, 'attendance-clock-in');
+    expect(command).toHaveBeenCalledWith('attendance.clock_in', expect.objectContaining({ source: 'personal' }));
+  });
+
+  it('…and then the radius applies to it: outside, nothing is sent', async () => {
+    world.settings = [SETTINGS_LOCATION];
+    world.mode = 'shared';
+    withGeolocation({ lat: WORKPLACE.lat + 0.02, lng: WORKPLACE.lng, accuracy: 5 });
+    const el = await mount();
+    world.mode = 'personal';
+    await press(el, 'attendance-clock-in');
+    expect(geoCalls).toBe(1);
+    expect(command).not.toHaveBeenCalled();
+  });
+
+  it('a device that turned shared after mount clocks in as shared, without asking a position', async () => {
+    world.settings = [SETTINGS_LOCATION];
+    world.mode = 'personal';
+    withGeolocation({ ...WORKPLACE, accuracy: 5 });
+    const el = await mount();
+    world.mode = 'shared';
+    await press(el, 'attendance-clock-in');
+    expect(geoCalls).toBe(0);
+    expect(command).toHaveBeenCalledWith('attendance.clock_in', expect.objectContaining({ source: 'shared' }));
+  });
+});
+
 describe('erp-attendance-clock — clocking out never blocks', () => {
   it('location denied on clock-out still clocks out, with no coordinates', async () => {
     world.settings = [SETTINGS_LOCATION];

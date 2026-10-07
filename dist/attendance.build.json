@@ -1,7 +1,7 @@
 {
   "file": "dist/attendance.esm.js",
-  "sources_sha256": "43a46b07c3e8d695c3eba888d90f345b552e05dd96eaf640dd4d5d5932afbfc3",
-  "locales_sha256": "84887deed275756b06aaceeebca54064538619c1a2372c60ce43ded8223f647f",
-  "bundle_sha256": "a450ef7ed9f0140429a23e7a655c339f37f71e6e16e17319d71f55875139b3f9",
-  "built_at": "2026-10-07T06:42:54.579Z"
+  "sources_sha256": "b11c210393ca8df328611b7882054b52fc2b58b194df2a93f9ab2f499fa12ed1",
+  "locales_sha256": "c914bc0a9e42e0d6b783ed170b5822e718b7c0bf5cc1129ce177400da542a36a",
+  "bundle_sha256": "2eefb2b7e5d1d0c2125f2cea708064fc4feb2e12056febc481b1b9b3bdb7108d",
+  "built_at": "2026-10-07T07:01:40.350Z"
 }

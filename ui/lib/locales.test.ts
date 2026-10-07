@@ -1,7 +1,10 @@
-// Every visible string of the clock and settings screens lives in `locales/en.json` (source) with
-// its `es` translation (ADR-0055/0199). This guard holds the two halves together for the blocks
-// these screens own (`ui.clock`, `ui.settings`, `ui.common`): same keys in both languages, no empty
-// text, and every key a screen asks for actually exists.
+// Every visible string of the three screens lives in `locales/en.json` (source) with its `es`
+// translation (ADR-0055/0199). This guard holds the two halves together for the blocks the screens
+// own (`ui.clock`, `ui.records`, `ui.settings`, `ui.common`): same keys in both languages, no empty
+// text, every key a screen asks for actually exists, and no key is left behind that nobody uses.
+//
+// The records screen builds ONE family of keys at run time — `ui.records.status.${status}` — so
+// those are checked against the closed set of statuses instead of being searched for literally.
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,7 +12,10 @@ import { join } from 'node:path';
 /** The module root: two levels above this file (`ui/lib/`). */
 const ROOT = join(__dirname, '..', '..');
 if (!existsSync(join(ROOT, 'module.json'))) throw new Error(`module.json not found in ${ROOT}`);
-const BLOCKS = ['clock', 'settings', 'common'] as const;
+const BLOCKS = ['clock', 'records', 'settings', 'common'] as const;
+/** The `status` column of `attendance_record` (spec §1): the only run-time-built keys. */
+const STATUSES = ['open', 'closed', 'needs_review'];
+const DYNAMIC_STATUS = 'ui.records.status.';
 
 type Dict = { [k: string]: string | Dict };
 const load = (lang: string): Dict => JSON.parse(readFileSync(join(ROOT, 'locales', `${lang}.json`), 'utf8'));
@@ -43,7 +49,15 @@ function sources(dir: string, found: string[] = []): string[] {
   return found;
 }
 
-describe('locales — ui.clock, ui.settings, ui.common', () => {
+const SCREENS = [
+  ...sources(join(ROOT, 'ui', 'components', 'erp-attendance-clock')),
+  ...sources(join(ROOT, 'ui', 'components', 'erp-attendance-records')),
+  ...sources(join(ROOT, 'ui', 'components', 'erp-attendance-settings')),
+  ...sources(join(ROOT, 'ui', 'lib')),
+];
+const TEXT = SCREENS.map((file) => readFileSync(file, 'utf8')).join('\n');
+
+describe('locales — ui.clock, ui.records, ui.settings, ui.common', () => {
   it('carry the same keys in English and Spanish', () => {
     expect([...ES.keys()].sort()).toEqual([...EN.keys()].sort());
   });
@@ -53,35 +67,26 @@ describe('locales — ui.clock, ui.settings, ui.common', () => {
     expect(empty).toEqual([]);
   });
 
-  it('cover every key the clock and settings screens ask for', () => {
-    const screens = [
-      ...sources(join(ROOT, 'ui', 'components', 'erp-attendance-clock')),
-      ...sources(join(ROOT, 'ui', 'components', 'erp-attendance-settings')),
-      ...sources(join(ROOT, 'ui', 'lib')),
-    ];
+  it('cover every key the screens ask for', () => {
     const used = new Set<string>();
-    for (const file of screens) {
-      for (const m of readFileSync(file, 'utf8').matchAll(/'(ui\.(?:clock|settings|common)\.[A-Za-z0-9_.]+)'/g)) {
-        used.add(m[1]);
-      }
-    }
+    for (const m of TEXT.matchAll(/'(ui\.(?:clock|records|settings|common)\.[A-Za-z0-9_.]+)'/g)) used.add(m[1]);
     const missing = [...used].filter((k) => !EN.has(k) || !ES.has(k)).sort();
     expect(missing).toEqual([]);
   });
 
-  // `ui.common` is shared with the records screen, so only the two blocks these screens own alone
-  // are held to «no dead key».
-  it('carry no ui.clock / ui.settings key that no screen uses', () => {
-    const text = [
-      ...sources(join(ROOT, 'ui', 'components', 'erp-attendance-clock')),
-      ...sources(join(ROOT, 'ui', 'components', 'erp-attendance-settings')),
-      ...sources(join(ROOT, 'ui', 'lib')),
-    ]
-      .map((file) => readFileSync(file, 'utf8'))
-      .join('\n');
+  it('translate every status the records screen builds a key for', () => {
+    expect(TEXT).toContain('`ui.records.status.${');
+    const want = STATUSES.map((s) => `${DYNAMIC_STATUS}${s}`).sort();
+    expect([...EN.keys()].filter((k) => k.startsWith(DYNAMIC_STATUS)).sort()).toEqual(want);
+    expect([...ES.keys()].filter((k) => k.startsWith(DYNAMIC_STATUS)).sort()).toEqual(want);
+  });
+
+  // `ui.common` is shared, so only the blocks one screen owns are held to «no dead key».
+  it('carry no ui.clock / ui.records / ui.settings key that no screen uses', () => {
     const dead = [...EN.keys()]
-      .filter((k) => /^ui\.(clock|settings)\./.test(k))
-      .filter((k) => !text.includes(`'${k}'`))
+      .filter((k) => /^ui\.(clock|records|settings)\./.test(k))
+      .filter((k) => !k.startsWith(DYNAMIC_STATUS))
+      .filter((k) => !TEXT.includes(`'${k}'`))
       .sort();
     expect(dead).toEqual([]);
   });

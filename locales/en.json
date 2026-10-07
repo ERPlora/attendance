@@ -163,7 +163,8 @@
       "invalidLongitude": "Longitude must be a number between -180 and 180.",
       "coordinatesIncomplete": "Fill in both latitude and longitude, or leave both empty.",
       "invalidAutoClose": "Enter a whole number of hours between 1 and 24.",
-      "locationDenied": "Location access is denied. Allow location in this browser to read the workplace position, or type the coordinates."
+      "locationDenied": "Location access is denied. Allow location in this browser to read the workplace position, or type the coordinates.",
+      "readOnly": "Only a manager or administrator can change these settings."
     },
     "common": {
       "loading": "Loading…",

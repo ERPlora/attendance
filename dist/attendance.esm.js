@@ -1478,7 +1478,8 @@ var es_default = {
       invalidLongitude: "La longitud tiene que ser un n\xFAmero entre -180 y 180.",
       coordinatesIncomplete: "Rellena la latitud y la longitud, o deja las dos vac\xEDas.",
       invalidAutoClose: "Escribe un n\xFAmero entero de horas entre 1 y 24.",
-      locationDenied: "El acceso a la ubicaci\xF3n est\xE1 denegado. Permite la ubicaci\xF3n en este navegador para leer la posici\xF3n del lugar de trabajo o escribe las coordenadas."
+      locationDenied: "El acceso a la ubicaci\xF3n est\xE1 denegado. Permite la ubicaci\xF3n en este navegador para leer la posici\xF3n del lugar de trabajo o escribe las coordenadas.",
+      readOnly: "Solo un encargado o administrador puede cambiar estos ajustes."
     },
     common: {
       loading: "Cargando\u2026",
@@ -1661,7 +1662,8 @@ var en_default = {
       invalidLongitude: "Longitude must be a number between -180 and 180.",
       coordinatesIncomplete: "Fill in both latitude and longitude, or leave both empty.",
       invalidAutoClose: "Enter a whole number of hours between 1 and 24.",
-      locationDenied: "Location access is denied. Allow location in this browser to read the workplace position, or type the coordinates."
+      locationDenied: "Location access is denied. Allow location in this browser to read the workplace position, or type the coordinates.",
+      readOnly: "Only a manager or administrator can change these settings."
     },
     common: {
       loading: "Loading\u2026",
@@ -2311,6 +2313,7 @@ var ErpAttendanceClock = class extends i3 {
     this.notice = null;
     this.distance = null;
     try {
+      this.mode = await readDeviceMode();
       let located = NOT_LOCATED;
       if (this.locationChecked) {
         if (!this.workplaceSet) {
@@ -5315,13 +5318,7 @@ function majorToMinor(amount, decimals) {
   return Number.isFinite(n6) ? Math.round(n6 * 10 ** decimals) : 0;
 }
 
-// ui/components/erp-attendance-records/erp-attendance-records.ts
-var CATALOG2 = { es: es_default, en: en_default };
-function erplora2() {
-  const c5 = globalThis.erplora;
-  if (!c5) throw new Error("erplora SDK is not initialised by the shell");
-  return c5;
-}
+// ui/lib/permissions.ts
 function readSession() {
   try {
     return JSON.parse(localStorage.getItem("erplora.session") ?? "null") ?? {};
@@ -5329,11 +5326,29 @@ function readSession() {
     return {};
   }
 }
-function sessionCan(session, permission) {
+var isAdminRole = (session) => {
   const role = String(session.role ?? "").toLowerCase();
-  if (role === "admin" || role === "owner") return true;
+  return role === "admin" || role === "owner";
+};
+function sessionCan(sdk, session, permission) {
+  if (isAdminRole(session)) return true;
+  if (typeof sdk?.hasPermission === "function") {
+    try {
+      return sdk.hasPermission(permission) === true;
+    } catch {
+      return false;
+    }
+  }
   const perms = Array.isArray(session.permissions) ? session.permissions : [];
   return perms.includes("*") || perms.includes(permission);
+}
+
+// ui/components/erp-attendance-records/erp-attendance-records.ts
+var CATALOG2 = { es: es_default, en: en_default };
+function erplora2() {
+  const c5 = globalThis.erplora;
+  if (!c5) throw new Error("erplora SDK is not initialised by the shell");
+  return c5;
 }
 function usersOf(result) {
   const rows = Array.isArray(result) ? result : result?.rows;
@@ -5417,8 +5432,8 @@ var ErpAttendanceRecords = class extends i3 {
   }
   init() {
     this.session = readSession();
-    this.team = sessionCan(this.session, "attendance.view_all");
-    this.canCorrect = sessionCan(this.session, "attendance.correct");
+    this.team = sessionCan(erplora2(), this.session, "attendance.view_all");
+    this.canCorrect = sessionCan(erplora2(), this.session, "attendance.correct");
     this.month = monthOf(Date.now(), this.timezone);
     const opts = {
       pageSize: 50,
@@ -6037,6 +6052,7 @@ var ErpAttendanceSettings = class extends i3 {
     this.locating = false;
     this.saving = false;
     this.notice = null;
+    this.canEdit = false;
   }
   static {
     this.styles = i`
@@ -6116,6 +6132,18 @@ var ErpAttendanceSettings = class extends i3 {
       border-left: 4px solid var(--ion-color-warning, #ffc409);
       font-weight: 600;
     }
+    .info {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin: 0;
+      padding: 10px 12px;
+      border-radius: 10px;
+      color: var(--ion-text-color, #1c1b18);
+      background: color-mix(in srgb, var(--ion-color-primary, #3880ff) 10%, transparent);
+      border-left: 4px solid var(--ion-color-primary, #3880ff);
+    }
+    .info ion-icon,
     .warning ion-icon {
       flex: 0 0 auto;
       font-size: 20px;
@@ -6168,6 +6196,7 @@ var ErpAttendanceSettings = class extends i3 {
   }
   connectedCallback() {
     super.connectedCallback();
+    this.canEdit = sessionCan(erplora3(), readSession(), "attendance.manage_settings");
     void this.load();
   }
   apply(s5) {
@@ -6193,7 +6222,7 @@ var ErpAttendanceSettings = class extends i3 {
     return this.requireLocation === 1 && (!this.latText.trim() || !this.lngText.trim());
   }
   async useMyLocation() {
-    if (this.locating) return;
+    if (this.locating || !this.canEdit) return;
     this.locating = true;
     this.notice = null;
     try {
@@ -6237,7 +6266,7 @@ var ErpAttendanceSettings = class extends i3 {
     };
   }
   async save() {
-    if (this.saving) return;
+    if (this.saving || !this.canEdit) return;
     this.notice = null;
     const snap = this.snapshot();
     if (!snap.ok) {
@@ -6276,10 +6305,15 @@ var ErpAttendanceSettings = class extends i3 {
         <p class="muted">${this.t("ui.settings.intro")}</p>
       </header>
 
+      ${this.canEdit ? A : b2`<p class="info" role="note" data-testid="attendance-settings-read-only">
+            <ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>${this.t("ui.settings.readOnly")}
+          </p>`}
+
       <ion-toggle
         label-placement="start"
         justify="space-between"
         data-testid="attendance-settings-require-location"
+        ?disabled=${!this.canEdit}
         .checked=${this.requireLocation === 1}
         @ionChange=${(e6) => this.requireLocation = e6.detail?.checked ? 1 : 0}
         >${this.t("ui.settings.requireLocation")}</ion-toggle
@@ -6292,6 +6326,7 @@ var ErpAttendanceSettings = class extends i3 {
         label-placement="floating"
         label=${this.t("ui.settings.radius")}
         data-testid="attendance-settings-radius"
+        ?disabled=${!this.canEdit}
         .value=${String(this.radius)}
         @ionChange=${(e6) => {
       const n6 = Number(valueOf(e6));
@@ -6317,6 +6352,7 @@ var ErpAttendanceSettings = class extends i3 {
             label-placement="floating"
             label=${this.t("ui.settings.latitude")}
             data-testid="attendance-settings-lat"
+          ?disabled=${!this.canEdit}
             .value=${this.latText}
             @ionInput=${(e6) => this.latText = valueOf(e6)}
           ></ion-input>
@@ -6331,16 +6367,17 @@ var ErpAttendanceSettings = class extends i3 {
             label-placement="floating"
             label=${this.t("ui.settings.longitude")}
             data-testid="attendance-settings-lng"
+          ?disabled=${!this.canEdit}
             .value=${this.lngText}
             @ionInput=${(e6) => this.lngText = valueOf(e6)}
           ></ion-input>
         </div>
         <div class="locate">
-          <ion-button fill="outline" data-testid="attendance-use-my-location" ?disabled=${this.locating}
-            @click=${() => this.useMyLocation()}>
-            ${this.locating ? b2`<ion-spinner slot="start" name="crescent"></ion-spinner>` : b2`<ion-icon slot="start" name="locate-outline"></ion-icon>`}
-            ${this.locating ? this.t("ui.settings.locating") : this.t("ui.settings.useMyLocation")}
-          </ion-button>
+          ${this.canEdit ? b2`<ion-button fill="outline" data-testid="attendance-use-my-location" ?disabled=${this.locating}
+                @click=${() => this.useMyLocation()}>
+                ${this.locating ? b2`<ion-spinner slot="start" name="crescent"></ion-spinner>` : b2`<ion-icon slot="start" name="locate-outline"></ion-icon>`}
+                ${this.locating ? this.t("ui.settings.locating") : this.t("ui.settings.useMyLocation")}
+              </ion-button>` : A}
           ${this.accuracy !== null ? b2`<span class="help" data-testid="attendance-settings-accuracy">
                 ${this.t("ui.settings.accuracy", { accuracy: this.accuracy })}
               </span>` : A}
@@ -6363,6 +6400,7 @@ var ErpAttendanceSettings = class extends i3 {
           label-placement="floating"
           label=${this.t("ui.settings.autoClose")}
           data-testid="attendance-settings-auto-close"
+          ?disabled=${!this.canEdit}
           .value=${this.hoursText}
           @ionInput=${(e6) => this.hoursText = valueOf(e6)}
         ></ion-input>
@@ -6375,12 +6413,12 @@ var ErpAttendanceSettings = class extends i3 {
             data-testid="attendance-settings-message"
           >${this.notice.text}</p>` : A}
 
-      <div class="actions">
-        <ion-button data-testid="attendance-settings-save" ?disabled=${this.saving} @click=${() => this.save()}>
-          ${this.saving ? b2`<ion-spinner slot="start" name="crescent"></ion-spinner>` : b2`<ion-icon slot="start" name="save-outline"></ion-icon>`}
-          ${this.saving ? this.t("ui.settings.saving") : this.t("ui.settings.save")}
-        </ion-button>
-      </div>
+      ${this.canEdit ? b2`<div class="actions">
+            <ion-button data-testid="attendance-settings-save" ?disabled=${this.saving} @click=${() => this.save()}>
+              ${this.saving ? b2`<ion-spinner slot="start" name="crescent"></ion-spinner>` : b2`<ion-icon slot="start" name="save-outline"></ion-icon>`}
+              ${this.saving ? this.t("ui.settings.saving") : this.t("ui.settings.save")}
+            </ion-button>
+          </div>` : A}
     </section>`;
   }
 };
@@ -6420,4 +6458,7 @@ __decorateClass([
 __decorateClass([
   r5()
 ], ErpAttendanceSettings.prototype, "notice", 2);
+__decorateClass([
+  r5()
+], ErpAttendanceSettings.prototype, "canEdit", 2);
 define("erp-attendance-settings", ErpAttendanceSettings);

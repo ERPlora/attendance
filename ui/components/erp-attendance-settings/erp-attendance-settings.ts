@@ -6,6 +6,7 @@ import esLocale from '../../../locales/es.json';
 import enLocale from '../../../locales/en.json';
 import { GeoError, getPosition } from '../../lib/geo';
 import { errorMessage } from '../../lib/errors';
+import { readSession, sessionCan } from '../../lib/permissions';
 import {
   AUTO_CLOSE_MAX,
   AUTO_CLOSE_MIN,
@@ -21,12 +22,15 @@ const CATALOG: Record<string, unknown> = { es: esLocale, en: enLocale };
 // (spec §6). It exists instead of the shell's generic form for ONE reason: the «Use my current
 // location» button, which reads the workplace coordinates from the device standing in it. Loads
 // `attendance.settings.get` (no row → the schema defaults) and saves the FULL snapshot through
-// `attendance.settings.update`.
+// `attendance.settings.update`. The shell shows the tab to everybody who clocks; without
+// `attendance.manage_settings` the form is READ-ONLY (disabled fields, no Save, no locate) instead
+// of a Save the runtime would refuse.
 
 interface ErploraClientLike {
   query<T = unknown>(name: string, params?: Record<string, unknown>): Promise<T>;
   command<T = unknown>(name: string, payload?: Record<string, unknown>): Promise<T>;
   t(catalog: Record<string, unknown>, key: string, params?: Record<string, unknown>): string;
+  hasPermission?(permission: string): boolean;
   readonly locale?: string;
 }
 
@@ -135,6 +139,18 @@ export class ErpAttendanceSettings extends LitElement {
       border-left: 4px solid var(--ion-color-warning, #ffc409);
       font-weight: 600;
     }
+    .info {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin: 0;
+      padding: 10px 12px;
+      border-radius: 10px;
+      color: var(--ion-text-color, #1c1b18);
+      background: color-mix(in srgb, var(--ion-color-primary, #3880ff) 10%, transparent);
+      border-left: 4px solid var(--ion-color-primary, #3880ff);
+    }
+    .info ion-icon,
     .warning ion-icon {
       flex: 0 0 auto;
       font-size: 20px;
@@ -191,6 +207,7 @@ export class ErpAttendanceSettings extends LitElement {
   @state() private locating = false;
   @state() private saving = false;
   @state() private notice: Notice = null;
+  @state() private canEdit = false;
 
   private t(key: string, params?: Record<string, unknown>): string {
     return erplora().t(CATALOG, key, params);
@@ -202,6 +219,7 @@ export class ErpAttendanceSettings extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.canEdit = sessionCan(erplora(), readSession(), 'attendance.manage_settings');
     void this.load();
   }
 
@@ -231,7 +249,7 @@ export class ErpAttendanceSettings extends LitElement {
   }
 
   private async useMyLocation(): Promise<void> {
-    if (this.locating) return;
+    if (this.locating || !this.canEdit) return;
     this.locating = true;
     this.notice = null;
     try {
@@ -277,7 +295,7 @@ export class ErpAttendanceSettings extends LitElement {
   }
 
   private async save(): Promise<void> {
-    if (this.saving) return;
+    if (this.saving || !this.canEdit) return;
     this.notice = null;
     const snap = this.snapshot();
     if (!snap.ok) {
@@ -317,10 +335,17 @@ export class ErpAttendanceSettings extends LitElement {
         <p class="muted">${this.t('ui.settings.intro')}</p>
       </header>
 
+      ${this.canEdit
+        ? nothing
+        : html`<p class="info" role="note" data-testid="attendance-settings-read-only">
+            <ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>${this.t('ui.settings.readOnly')}
+          </p>`}
+
       <ion-toggle
         label-placement="start"
         justify="space-between"
         data-testid="attendance-settings-require-location"
+        ?disabled=${!this.canEdit}
         .checked=${this.requireLocation === 1}
         @ionChange=${(e: CustomEvent<{ checked: boolean }>) => (this.requireLocation = e.detail?.checked ? 1 : 0)}
         >${this.t('ui.settings.requireLocation')}</ion-toggle
@@ -333,6 +358,7 @@ export class ErpAttendanceSettings extends LitElement {
         label-placement="floating"
         label=${this.t('ui.settings.radius')}
         data-testid="attendance-settings-radius"
+        ?disabled=${!this.canEdit}
         .value=${String(this.radius)}
         @ionChange=${(e: Event) => {
           const n = Number(valueOf(e));
@@ -358,6 +384,7 @@ export class ErpAttendanceSettings extends LitElement {
             label-placement="floating"
             label=${this.t('ui.settings.latitude')}
             data-testid="attendance-settings-lat"
+          ?disabled=${!this.canEdit}
             .value=${this.latText}
             @ionInput=${(e: Event) => (this.latText = valueOf(e))}
           ></ion-input>
@@ -372,18 +399,21 @@ export class ErpAttendanceSettings extends LitElement {
             label-placement="floating"
             label=${this.t('ui.settings.longitude')}
             data-testid="attendance-settings-lng"
+          ?disabled=${!this.canEdit}
             .value=${this.lngText}
             @ionInput=${(e: Event) => (this.lngText = valueOf(e))}
           ></ion-input>
         </div>
         <div class="locate">
-          <ion-button fill="outline" data-testid="attendance-use-my-location" ?disabled=${this.locating}
-            @click=${() => this.useMyLocation()}>
-            ${this.locating
-              ? html`<ion-spinner slot="start" name="crescent"></ion-spinner>`
-              : html`<ion-icon slot="start" name="locate-outline"></ion-icon>`}
-            ${this.locating ? this.t('ui.settings.locating') : this.t('ui.settings.useMyLocation')}
-          </ion-button>
+          ${this.canEdit
+            ? html`<ion-button fill="outline" data-testid="attendance-use-my-location" ?disabled=${this.locating}
+                @click=${() => this.useMyLocation()}>
+                ${this.locating
+                  ? html`<ion-spinner slot="start" name="crescent"></ion-spinner>`
+                  : html`<ion-icon slot="start" name="locate-outline"></ion-icon>`}
+                ${this.locating ? this.t('ui.settings.locating') : this.t('ui.settings.useMyLocation')}
+              </ion-button>`
+            : nothing}
           ${this.accuracy !== null
             ? html`<span class="help" data-testid="attendance-settings-accuracy">
                 ${this.t('ui.settings.accuracy', { accuracy: this.accuracy })}
@@ -410,6 +440,7 @@ export class ErpAttendanceSettings extends LitElement {
           label-placement="floating"
           label=${this.t('ui.settings.autoClose')}
           data-testid="attendance-settings-auto-close"
+          ?disabled=${!this.canEdit}
           .value=${this.hoursText}
           @ionInput=${(e: Event) => (this.hoursText = valueOf(e))}
         ></ion-input>
@@ -424,14 +455,16 @@ export class ErpAttendanceSettings extends LitElement {
           >${this.notice.text}</p>`
         : nothing}
 
-      <div class="actions">
-        <ion-button data-testid="attendance-settings-save" ?disabled=${this.saving} @click=${() => this.save()}>
-          ${this.saving
-            ? html`<ion-spinner slot="start" name="crescent"></ion-spinner>`
-            : html`<ion-icon slot="start" name="save-outline"></ion-icon>`}
-          ${this.saving ? this.t('ui.settings.saving') : this.t('ui.settings.save')}
-        </ion-button>
-      </div>
+      ${this.canEdit
+        ? html`<div class="actions">
+            <ion-button data-testid="attendance-settings-save" ?disabled=${this.saving} @click=${() => this.save()}>
+              ${this.saving
+                ? html`<ion-spinner slot="start" name="crescent"></ion-spinner>`
+                : html`<ion-icon slot="start" name="save-outline"></ion-icon>`}
+              ${this.saving ? this.t('ui.settings.saving') : this.t('ui.settings.save')}
+            </ion-button>
+          </div>`
+        : nothing}
     </section>`;
   }
 }

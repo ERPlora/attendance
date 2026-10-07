@@ -456,6 +456,9 @@ export class ErpAttendanceClock extends LitElement {
     this.notice = null;
     this.distance = null;
     try {
+      // The shell resolves the device mode asynchronously (hub#2584): the value read at mount is
+      // only the hint the screen shows. The one that decides `source` and the radius is read now.
+      this.mode = await readDeviceMode();
       let located: Located = NOT_LOCATED;
       if (this.locationChecked) {
         if (!this.workplaceSet) {

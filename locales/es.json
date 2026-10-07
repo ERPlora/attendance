@@ -163,7 +163,8 @@
       "invalidLongitude": "La longitud tiene que ser un número entre -180 y 180.",
       "coordinatesIncomplete": "Rellena la latitud y la longitud, o deja las dos vacías.",
       "invalidAutoClose": "Escribe un número entero de horas entre 1 y 24.",
-      "locationDenied": "El acceso a la ubicación está denegado. Permite la ubicación en este navegador para leer la posición del lugar de trabajo o escribe las coordenadas."
+      "locationDenied": "El acceso a la ubicación está denegado. Permite la ubicación en este navegador para leer la posición del lugar de trabajo o escribe las coordenadas.",
+      "readOnly": "Solo un encargado o administrador puede cambiar estos ajustes."
     },
     "common": {
       "loading": "Cargando…",

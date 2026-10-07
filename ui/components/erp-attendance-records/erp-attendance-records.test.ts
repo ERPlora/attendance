@@ -43,11 +43,16 @@ let notices: { type: string; message: string }[] = [];
 let pageAnswer: (name: string, params: Params) => Promise<unknown>;
 let commandAnswer: (name: string) => Promise<unknown>;
 
+/** What the shell's SDK answers `hasPermission` from (the shell grants admin/owner `*`). */
+let granted: string[] = [];
+
+/** The session as the shell leaves it: stored in localStorage AND behind `erplora.hasPermission`. */
 function session(role: string, permissions: string[]): void {
   localStorage.setItem(
     'erplora.session',
     JSON.stringify({ id: 'user-ana', name: 'Ana', role, permissions }),
   );
+  granted = ['admin', 'owner'].includes(role) ? ['*'] : permissions;
 }
 
 const EMPLOYEE = ['attendance.clock'];
@@ -92,6 +97,7 @@ beforeEach(() => {
       return commandAnswer(name);
     },
     notify: (n: { type: string; message: string }) => notices.push(n),
+    hasPermission: (p: string) => granted.includes('*') || granted.includes(p),
     on: () => () => {},
   };
 });
@@ -302,6 +308,30 @@ describe('the team (manager with attendance.view_all)', () => {
     session('owner', []);
     await mount();
     expect(pages.map((p) => p.name)).toContain('attendance.records.list');
+  });
+
+  it('the SDK decides over a stale stored session: hasPermission opens the team', async () => {
+    session('employee', EMPLOYEE);
+    granted = MANAGER;
+    const el = await mount();
+    expect(pages.map((p) => p.name)).toContain('attendance.records.list');
+    expect(find(el, 'attendance-correct-rec-101')).toBeTruthy();
+  });
+
+  it('the SDK decides over a stale stored session: no permission keeps the own days', async () => {
+    session('manager', MANAGER);
+    granted = EMPLOYEE;
+    const el = await mount();
+    expect(pages.map((p) => p.name)).not.toContain('attendance.records.list');
+    expect(find(el, 'attendance-correct-rec-101')).toBeNull();
+  });
+
+  it('an SDK without hasPermission falls back to the stored session', async () => {
+    session('manager', MANAGER);
+    delete (globalThis as { erplora: Record<string, unknown> }).erplora.hasPermission;
+    const el = await mount();
+    expect(pages.map((p) => p.name)).toContain('attendance.records.list');
+    expect(find(el, 'attendance-correct-rec-101')).toBeTruthy();
   });
 
   it('shows Correct only with attendance.correct, History with attendance.view_all', async () => {

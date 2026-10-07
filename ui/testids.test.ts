@@ -110,6 +110,7 @@ const COVERED: Record<
       'attendance-settings-location-warning',
       'attendance-settings-message',
       'attendance-settings-radius',
+      'attendance-settings-read-only',
       'attendance-settings-require-location',
       'attendance-settings-retry',
       'attendance-settings-save',
