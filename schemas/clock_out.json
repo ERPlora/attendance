@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "attendance.clock_out",
+  "description": "Clock out the session user. Closes the running break, if any. Location fields are optional and recorded as reported.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "lat": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": -90,
+      "maximum": 90,
+      "description": "Latitude of the device when clocking out. Null when location is not required."
+    },
+    "lng": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": -180,
+      "maximum": 180,
+      "description": "Longitude of the device when clocking out. Null when location is not required."
+    },
+    "accuracy_m": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Accuracy of the position reported by the device, in metres."
+    },
+    "distance_m": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Distance to the workplace measured by the client (Haversine), in metres."
+    },
+    "within_radius": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "enum": [
+        0,
+        1,
+        null
+      ],
+      "description": "1 when the client measured the device inside the workplace radius, 0 outside, null when not measured."
+    }
+  }
+}

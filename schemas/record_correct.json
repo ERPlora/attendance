@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "attendance.records.correct",
+  "description": "Correct the clock-in and clock-out of one working day. Every correction keeps a trail with the old values, the new values and the reason. Without `clock_out_at` the day is open again.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_id",
+    "clock_in_at",
+    "reason"
+  ],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the working day to correct."
+    },
+    "clock_in_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+      "description": "New clock-in in UTC, exactly as Date.prototype.toISOString() writes it (e.g. 2026-10-06T08:00:00.000Z). Offsets are refused: records are compared and sorted as UTC text."
+    },
+    "clock_out_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+      "description": "New clock-out in UTC (toISOString() form), or null to leave the day open. Must be after the clock-in."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 500,
+      "description": "Why the record is corrected. Mandatory: it is what an inspector reads."
+    }
+  }
+}

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "cor-011",
+    "record_id": "rec-101",
+    "old_clock_in_at": "2026-10-05T07:02:41Z",
+    "old_clock_out_at": null,
+    "old_status": "needs_review",
+    "new_clock_in_at": "2026-10-05T07:02:41Z",
+    "new_clock_out_at": "2026-10-05T15:05:03Z",
+    "new_status": "closed",
+    "reason": "Forgot to clock out, confirmed with the shift sheet",
+    "created_by": "user-boss",
+    "created_at": "2026-10-06T07:40:18Z"
+  },
+  {
+    "id": "cor-009",
+    "record_id": "rec-097",
+    "old_clock_in_at": "2026-10-04T07:20:05Z",
+    "old_clock_out_at": "2026-10-04T14:31:47Z",
+    "old_status": "closed",
+    "new_clock_in_at": "2026-10-04T07:00:05Z",
+    "new_clock_out_at": "2026-10-04T14:31:47Z",
+    "new_status": "closed",
+    "reason": "Arrived at 9:00, the tablet was off",
+    "created_by": "user-boss",
+    "created_at": "2026-10-04T15:02:51Z"
+  }
+]

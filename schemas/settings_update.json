@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "attendance.settings.update",
+  "description": "Time clock settings (one row per hub). The screen sends the full snapshot. A flag is `integer` + `enum: [0, 1]` on purpose (staff#24): the shell's generic form paints it as a toggle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "require_location",
+    "geofence_radius_m",
+    "auto_close_after_hours"
+  ],
+  "properties": {
+    "require_location": {
+      "type": "integer",
+      "enum": [
+        0,
+        1
+      ],
+      "default": 0,
+      "title": "Require location when clocking in from a personal device",
+      "description": "The counter POS (shared device) is never asked for a location."
+    },
+    "geofence_radius_m": {
+      "type": "integer",
+      "enum": [
+        50,
+        100,
+        250,
+        500,
+        1000
+      ],
+      "default": 100,
+      "title": "Allowed radius (metres)",
+      "description": "How far from the workplace a personal device may clock in."
+    },
+    "workplace_lat": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": -90,
+      "maximum": 90,
+      "default": null,
+      "title": "Workplace latitude",
+      "description": "Leave empty until the workplace location is set."
+    },
+    "workplace_lng": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": -180,
+      "maximum": 180,
+      "default": null,
+      "title": "Workplace longitude",
+      "description": "Leave empty until the workplace location is set."
+    },
+    "auto_close_after_hours": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 24,
+      "default": 12,
+      "title": "Flag open days for review after (hours)",
+      "description": "A working day still open after this many hours is marked for review."
+    }
+  }
+}

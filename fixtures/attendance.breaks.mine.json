@@ -1,0 +1,26 @@
+[
+  {
+    "id": "brk-212",
+    "record_id": "rec-104",
+    "started_at": "2026-10-06T10:30:02Z",
+    "ended_at": null
+  },
+  {
+    "id": "brk-207",
+    "record_id": "rec-101",
+    "started_at": "2026-10-05T10:31:10Z",
+    "ended_at": "2026-10-05T11:01:10Z"
+  },
+  {
+    "id": "brk-201",
+    "record_id": "rec-097",
+    "started_at": "2026-10-04T09:15:00Z",
+    "ended_at": "2026-10-04T09:30:00Z"
+  },
+  {
+    "id": "brk-202",
+    "record_id": "rec-097",
+    "started_at": "2026-10-04T12:00:00Z",
+    "ended_at": "2026-10-04T12:10:00Z"
+  }
+]

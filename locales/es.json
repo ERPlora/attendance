@@ -1,20 +1,182 @@
 {
-  "name": "Attendance",
+  "name": "Control horario",
+  "description": "Registro de jornada para empleados: fichar la entrada y la salida con un toque, pausas, un registro legal de la jornada (art. 34.9 ET) con rastro de correcciones y un radio opcional del lugar de trabajo para los dispositivos personales.",
   "navigation": {
-    "items": {
-      "label": "Items"
+    "clock": {
+      "label": "Fichar"
+    },
+    "records": {
+      "label": "Registros"
     }
   },
+  "settings": {
+    "title": "Control horario",
+    "fields": {
+      "require_location": {
+        "label": "Pedir la ubicación al fichar desde un dispositivo personal",
+        "description": "Al TPV del mostrador (dispositivo compartido) nunca se le pide la ubicación."
+      },
+      "geofence_radius_m": {
+        "label": "Radio permitido (metros)",
+        "description": "A qué distancia del lugar de trabajo puede fichar un dispositivo personal."
+      },
+      "workplace_lat": {
+        "label": "Latitud del lugar de trabajo",
+        "description": "Déjala vacía hasta fijar la ubicación del lugar de trabajo."
+      },
+      "workplace_lng": {
+        "label": "Longitud del lugar de trabajo",
+        "description": "Déjala vacía hasta fijar la ubicación del lugar de trabajo."
+      },
+      "auto_close_after_hours": {
+        "label": "Marcar para revisar las jornadas abiertas tras (horas)",
+        "description": "Una jornada que sigue abierta pasadas estas horas se marca para revisar."
+      }
+    }
+  },
+  "widgets": {
+    "attendance.clocked_in_now": {
+      "title": "Fichados ahora",
+      "label": "Fichados ahora"
+    }
+  },
+  "errors": {
+    "attendance.clock_in_rejected": "No se ha podido fichar la entrada: ya tienes una jornada abierta o este dispositivo está fuera del radio permitido.",
+    "attendance.no_open_record": "No hay ninguna jornada abierta de la que fichar la salida.",
+    "attendance.break_rejected": "No se ha podido empezar la pausa: no hay jornada abierta o ya hay una pausa en curso.",
+    "attendance.no_open_break": "No hay ninguna pausa en curso que terminar.",
+    "attendance.record_not_found": "No se ha podido corregir la jornada: no existe, la salida no es posterior a la entrada o reabrirla dejaría a la persona con dos jornadas abiertas.",
+    "attendance.settings_not_saved": "No se han podido guardar los ajustes del control horario. Vuelve a intentarlo en un momento."
+  },
   "ui": {
-    "colName": "Nombre",
-    "colCode": "Código",
-    "colAmount": "Importe",
-    "searchPlaceholder": "Buscar…",
-    "loading": "Cargando…",
-    "empty": "Todavía no hay registros.",
-    "save": "Guardar",
-    "saving": "Guardando…",
-    "createFailed": "No se pudo guardar. Revisa los datos y vuelve a intentarlo.",
-    "loadFailed": "No se pudo cargar la lista. Vuelve a intentarlo en un momento."
+    "clock": {
+      "title": "Control horario",
+      "greeting": "Hola, {name}",
+      "now": "Son las {time}",
+      "statusOut": "No has fichado la entrada",
+      "statusIn": "Dentro desde las {time}",
+      "statusOnBreak": "En pausa desde las {time}",
+      "elapsed": "Tiempo desde la entrada",
+      "clockIn": "Fichar entrada",
+      "clockOut": "Fichar salida",
+      "breakStart": "Empezar pausa",
+      "breakEnd": "Terminar pausa",
+      "locating": "Obteniendo tu ubicación…",
+      "locationRequired": "Al fichar la entrada desde este dispositivo se comprueba tu ubicación.",
+      "distance": "Estás a {distance} m del lugar de trabajo.",
+      "outsideRadius": "Estás a {distance} m del lugar de trabajo, fuera de los {radius} m permitidos. Acércate para fichar o ficha en el mostrador.",
+      "workplaceNotSet": "Aún no se ha fijado la ubicación del lugar de trabajo, así que este dispositivo no puede fichar. Pide a un encargado que la fije en los ajustes del control horario o ficha en el mostrador.",
+      "locationDenied": "El acceso a la ubicación está denegado. Permite la ubicación a esta app para fichar desde este dispositivo o ficha en el mostrador.",
+      "clockedIn": "Entrada fichada a las {time}.",
+      "clockedOut": "Salida fichada a las {time}.",
+      "breakStarted": "Pausa iniciada a las {time}.",
+      "breakEnded": "Pausa terminada a las {time}.",
+      "today": "Hoy",
+      "workedToday": "Trabajado",
+      "breaksToday": "Pausas",
+      "recent": "Últimas jornadas",
+      "empty": "Todavía no hay registros",
+      "noClockOut": "sin salida",
+      "reloadFailed": "No se pudo actualizar la pantalla: {reason}"
+    },
+    "records": {
+      "title": "Registros",
+      "filterUser": "Persona",
+      "allUsers": "Todo el equipo",
+      "filterMonth": "Mes",
+      "filterStatus": "Estado",
+      "allStatuses": "Todos los estados",
+      "status": {
+        "open": "Abierta",
+        "closed": "Cerrada",
+        "needs_review": "Por revisar"
+      },
+      "colDate": "Fecha",
+      "colUser": "Persona",
+      "colIn": "Entrada",
+      "colOut": "Salida",
+      "colBreaks": "Pausas (min)",
+      "colWorked": "Trabajado",
+      "colStatus": "Estado",
+      "colRadius": "Ubicación",
+      "colActions": "Acciones",
+      "inProgress": "En curso",
+      "radiusInInside": "Entrada dentro del radio del local",
+      "radiusInOutside": "Entrada fuera del radio del local",
+      "radiusOutInside": "Salida dentro del radio del local",
+      "radiusOutOutside": "Salida fuera del radio del local",
+      "noLocation": "Sin ubicación registrada",
+      "correct": "Corregir",
+      "history": "Historial",
+      "exportCsv": "Exportar CSV",
+      "exporting": "Exportando…",
+      "exportEmpty": "No hay registros con este filtro: el fichero solo lleva la cabecera.",
+      "exportFailed": "No se pudo exportar el CSV. Inténtalo de nuevo.",
+      "loading": "Cargando registros…",
+      "empty": "No hay registros en este mes.",
+      "loadFailed": "No se pudieron cargar los registros.",
+      "retry": "Reintentar",
+      "usersUnavailable": "No se pudieron cargar los nombres del equipo: cada persona aparece con su id.",
+      "breaksUnavailable": "No se pudieron cargar las pausas en curso: el tiempo trabajado de las jornadas abiertas puede incluirlas.",
+      "correctTitle": "Corregir jornada",
+      "fieldClockIn": "Entrada",
+      "fieldClockOut": "Salida (vacía = sigue abierta)",
+      "fieldReason": "Motivo",
+      "reasonHelper": "Obligatorio. Queda en el historial de la jornada con tu nombre.",
+      "save": "Guardar corrección",
+      "saving": "Guardando…",
+      "cancel": "Cancelar",
+      "close": "Cerrar",
+      "invalidClockIn": "Indica la fecha y la hora de entrada.",
+      "invalidCorrection": "La salida tiene que ser posterior a la entrada.",
+      "reasonRequired": "Escribe un motivo de al menos 3 caracteres.",
+      "corrected": "Jornada corregida.",
+      "saveFailed": "No se pudo guardar la corrección. Inténtalo de nuevo.",
+      "historyTitle": "Historial de correcciones",
+      "historyLoading": "Cargando historial…",
+      "historyEmpty": "Esta jornada no se ha corregido nunca.",
+      "historyFailed": "No se pudo cargar el historial.",
+      "historyBefore": "Antes",
+      "historyAfter": "Después",
+      "historyReason": "Motivo",
+      "systemActor": "Sistema"
+    },
+    "settings": {
+      "title": "Ajustes del control horario",
+      "intro": "Decide si un dispositivo personal tiene que estar en el lugar de trabajo para fichar. Al TPV del mostrador (dispositivo compartido) nunca se le pide la ubicación.",
+      "requireLocation": "Pedir la ubicación al fichar desde un dispositivo personal",
+      "radius": "Radio permitido",
+      "radiusOption": "{radius} m",
+      "workplace": "Ubicación del lugar de trabajo",
+      "latitude": "Latitud",
+      "longitude": "Longitud",
+      "useMyLocation": "Usar mi ubicación actual",
+      "locating": "Obteniendo tu ubicación…",
+      "accuracy": "Posición leída con una precisión de ±{accuracy} m. Hazlo desde el propio lugar de trabajo.",
+      "workplaceMissing": "Fija la ubicación del lugar de trabajo o nadie podrá fichar desde un dispositivo personal.",
+      "autoClose": "Marcar a revisar tras (horas)",
+      "autoCloseHelp": "Una jornada que sigue abierta pasadas estas horas se marca para revisar y que un encargado la corrija.",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "saved": "Ajustes guardados.",
+      "invalidLatitude": "La latitud tiene que ser un número entre -90 y 90.",
+      "invalidLongitude": "La longitud tiene que ser un número entre -180 y 180.",
+      "coordinatesIncomplete": "Rellena la latitud y la longitud, o deja las dos vacías.",
+      "invalidAutoClose": "Escribe un número entero de horas entre 1 y 24.",
+      "locationDenied": "El acceso a la ubicación está denegado. Permite la ubicación en este navegador para leer la posición del lugar de trabajo o escribe las coordenadas.",
+      "readOnly": "Solo un encargado o administrador puede cambiar estos ajustes."
+    },
+    "common": {
+      "loading": "Cargando…",
+      "retry": "Reintentar",
+      "loadError": "No se ha podido cargar el control horario. Comprueba la conexión y vuelve a intentarlo.",
+      "unexpectedError": "Algo ha fallado. Vuelve a intentarlo en un momento.",
+      "locationUnavailable": "No se ha podido determinar tu posición. Ponte en un lugar despejado y vuelve a intentarlo.",
+      "locationTimeout": "Obtener tu posición ha tardado demasiado. Vuelve a intentarlo.",
+      "locationUnsupported": "Este dispositivo no puede compartir su ubicación.",
+      "statusOpen": "En curso",
+      "statusClosed": "Cerrada",
+      "statusNeedsReview": "Para revisar"
+    }
   }
 }

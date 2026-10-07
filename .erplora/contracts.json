@@ -3,11 +3,23 @@
   "module": "attendance",
   "consumes": {
     "queries": [
-      "attendance.items.list"
+      "attendance.breaks.list",
+      "attendance.breaks.mine",
+      "attendance.corrections.list",
+      "attendance.records.list",
+      "attendance.records.mine",
+      "attendance.records.mine_open",
+      "attendance.settings.get",
+      "hub.users.list"
     ],
     "optional_queries": [],
     "commands": [
-      "attendance.items.create"
+      "attendance.break_end",
+      "attendance.break_start",
+      "attendance.clock_in",
+      "attendance.clock_out",
+      "attendance.records.correct",
+      "attendance.settings.update"
     ],
     "events": [],
     "slots": []
