@@ -35,7 +35,7 @@ y tenerlo accesible al trabajador y a la Inspección.
 |---|---|---|---|---|
 | **Fichar** | `erp-attendance-clock` | menú «Clock in» | `attendance.clock` | Botón grande de entrada; dentro, cronómetro, pausa / fin de pausa y salida. Resumen de hoy (trabajado y pausas) y últimas jornadas. En un dispositivo personal con la ubicación exigida pide la posición y, si se deniega, no envía el fichaje. |
 | **Registros** | `erp-attendance-records` | menú «Records» | `attendance.clock` (lo propio); `attendance.view_all` (todos) | Jornadas del mes por persona y estado, exportación CSV del filtro (`attendance-YYYY-MM.csv`) y, con `attendance.correct`, corrección con motivo obligatorio e historial de cambios por jornada. |
-| **Ajustes** | `erp-attendance-settings` | ajustes del módulo | `attendance.manage_settings` | Exigir ubicación en dispositivos personales, radio, coordenadas del centro («Use my current location») y horas para el cierre automático. Sin fila guardada muestra los valores por defecto. |
+| **Ajustes** | `erp-attendance-settings` | ajustes del módulo | `attendance.clock` (solo lectura); `attendance.manage_settings` (cambiar) | Exigir ubicación en dispositivos personales, radio, coordenadas del centro («Use my current location») y horas tras las que una jornada abierta se marca «needs review» (no cierra nada: la cierra un encargado con una corrección). Sin fila guardada muestra los valores por defecto. |
 
 Además, el widget «Clocked in now» (`attendance.view_all`) cuenta quién está dentro ahora.
 

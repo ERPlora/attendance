@@ -1,5 +1,6 @@
 -- attendance.records.get: one working day by :record_id, every column, scoped to this hub.
--- Read by the correction dialog (managers, attendance.view_all) to show what is being changed.
+-- No screen calls it today (the correction dialog works from the row of the list): it is the read
+-- for the API and the assistant, one day with every column, location included.
 SELECT r.id,
        r.user_id,
        r.clock_in_at,

@@ -366,7 +366,9 @@
       "query": "attendance.presence.count",
       "refresh_on": [
         "attendance.clocked_in",
-        "attendance.clocked_out"
+        "attendance.clocked_out",
+        "attendance.record.needs_review",
+        "attendance.record.corrected"
       ],
       "map": {
         "value": "value"

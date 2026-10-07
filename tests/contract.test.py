@@ -21,6 +21,8 @@ years, make it available to the worker and to the Labour Inspectorate):
   6. `clock_in`'s guard answers `attendance.clock_in_rejected`, and `records.correct`'s guard is
      anchored on the statement that writes the trail — so a correction can never be applied
      without its trail row.
+  7. The «Clocked in now» widget refreshes on every event that changes how many days are open:
+     clock in, clock out, the scheduled review and a correction.
 
 Usage: tests/contract.test.py   (exit 0 = green)
 """
@@ -252,6 +254,22 @@ for key in ("name", "description"):
         f"locales/es.json `{key}` must be a Spanish translation, not missing nor a copy",
     )
 
+# 7. THE «CLOCKED IN NOW» WIDGET REFRESHES ON EVERY EVENT THAT MOVES THE COUNT. `presence.count`
+#    counts `open` days, and four events change that number: clocking in and out, the scheduled
+#    review (open → needs_review) and a correction (which can close a day or reopen one). A widget
+#    that misses one shows a stale count until the next clock-in.
+widget = (manifest.get("widgets") or {}).get("attendance.clocked_in_now") or {}
+for event in (
+    "attendance.clocked_in",
+    "attendance.clocked_out",
+    "attendance.record.needs_review",
+    "attendance.record.corrected",
+):
+    check(
+        event in (widget.get("refresh_on") or []),
+        f"widget attendance.clocked_in_now must refresh on `{event}`: it changes how many days are open",
+    )
+
 if failures:
     print(f"✗ {len(failures)} contract failure(s):", file=sys.stderr)
     for f in failures:
@@ -261,5 +279,6 @@ if failures:
 print(
     "✓ attendance contract: one open working day per person held by a unique index, nothing is "
     "ever deleted, every correction keeps old + new + reason, the device source is a closed enum, "
-    "location is off by default, and the guards answer the right codes"
+    "location is off by default, the guards answer the right codes, and the presence widget "
+    "refreshes on every event that moves its count"
 )

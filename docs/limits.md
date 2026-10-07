@@ -2,20 +2,26 @@
 
 ## Known limitations
 
-- **No PDF report yet.** The records screen exports CSV; a signable monthly PDF is not available.
+- **No PDF report yet.** The records screen exports CSV; a signable monthly PDF is not available
+  (attendance#3).
 - **One workplace per business.** There is a single workplace location and radius; multi-site
-  businesses cannot set one per store yet.
+  businesses cannot set one per store yet (attendance#4).
 - **No Labour Inspectorate API.** The Spanish digital-record regulation (immutable record, remote
   access for the Inspectorate) has not been approved as of October 2026; there is no export
-  channel to the Inspectorate beyond the CSV.
+  channel to the Inspectorate beyond the CSV (attendance#5).
 - **The radius trusts the device's GPS.** The distance is measured on the device and the server
   accepts what it reports, like Square and Factorial. A tampered device can report a false
-  position. The device mode (shared / personal) is also reported by the client.
+  position. The device mode (shared / personal) is also reported by the client; a server-side
+  device signal is tracked in hub#2554.
+- **No «Clock in» button in the POS header yet.** Clocking in is done from the module's own
+  screen (hub#2553).
 - **Installed app on older Hubs counts as shared.** With a Hub whose SDK exposes the device mode
   (hub#2584) the module uses it; older Hubs fall back to the HTTP door, which in the installed app
   answers `shared`, so the radius only applies in the browser there.
-- **No automatic purge after four years.** Records are kept; nothing is archived or deleted yet.
-- **No pay or overtime.** Hours are not crossed with rates or contracts.
+- **No automatic purge after four years.** Records are kept; nothing is archived or deleted yet
+  (attendance#7).
+- **No pay or overtime.** Hours are not crossed with rates, contracts or the `staff` module
+  (attendance#6).
 - **A correction only touches the break left running.** When a correction sets a clock-out, a
   break still running in that day is closed at the new clock-out (or at its own start if it began
   later). Breaks that already ended are left as they were, even if they end after the new

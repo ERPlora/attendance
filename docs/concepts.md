@@ -66,3 +66,11 @@ Queries return timestamps (RFC 3339, UTC) plus two helpers per working day:
   in SQL. A running break has no end yet: the screens add it live from the breaks query.
 
 Time worked is computed in the screen: clock-out (or now) minus clock-in minus breaks.
+
+## Night shifts and «Today»
+
+A working day belongs to the local day it **started** on (`local_date`). A shift from 22:00 to
+06:00 counts whole on the day of the 22:00 clock-in: the clock screen's **Today** includes it while
+that day lasts, and from local midnight on **Today** starts from zero even if the shift is still
+running (the running day is still shown in the timer and in the recent days). The records screen
+and the CSV list it under its start date, and a month filter includes it in the month it started.

@@ -26,8 +26,9 @@
   the clock-out empty reopens the day. **Correct** lives in the team view, so a role needs
   `attendance.view_all` as well: with `attendance.correct` alone the button is not shown.
 - **History** (managers with `attendance.view_all`): every correction of a working day — who,
-  when, before → after, and the reason. A correction made by the system (a scheduled task) shows
-  **System** as its author.
+  when, before → after, and the reason. Corrections are always made by a person: the scheduled
+  review only changes a day's status to **needs review** and writes no correction. An entry with no
+  author recorded shows **System**.
 - **Month**: the current month and the 48 before it (the four years the records are kept).
 - **Export CSV**: the current filter as `attendance-YYYY-MM.csv`.
 
@@ -39,3 +40,6 @@
   With location required and no workplace set, nobody on a personal device can clock in — the
   screen warns about it.
 - **Flag open days for review after** 1–24 hours (12 by default).
+- Only managers and administrators (`attendance.manage_settings`) can change them. Anybody else
+  sees the settings read-only — no **Save** and no **Use my current location** — with a line
+  saying who can change them.
