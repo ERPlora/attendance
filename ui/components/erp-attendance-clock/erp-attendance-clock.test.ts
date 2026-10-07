@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import enLocale from '../../../locales/en.json';
 import { haversineMeters } from '../../lib/geo';
+import { formatTime } from '../../lib/duration';
 
 type Row = Record<string, unknown>;
 type Dict = { [k: string]: unknown };
@@ -393,6 +394,26 @@ describe('erp-attendance-clock — loading, error and empty states', () => {
     expect(byId(el, 'attendance-clock-in')).not.toBeNull();
   });
 
+  it('a failed reload after a successful command keeps the screen and the success, and tells the failure', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-06T07:00:00Z'));
+    const el = await mount();
+    command.mockImplementationOnce(async () => {
+      world.failLoad = true;
+      return {};
+    });
+    await press(el, 'attendance-clock-in');
+    expect(byId(el, 'attendance-clock-error')).toBeNull();
+    expect(byId(el, 'attendance-clock-in')).not.toBeNull();
+    const time = formatTime('2026-10-06T07:00:00.000Z', 'Europe/Madrid', 'en');
+    expect(message(el)).toBe(en('ui.clock.clockedIn', { time }));
+    expect(byId(el, 'attendance-clock-reload-error')?.textContent).toContain('The hub did not answer.');
+    world.failLoad = false;
+    await press(el, 'attendance-clock-reload-retry');
+    expect(byId(el, 'attendance-clock-reload-error')).toBeNull();
+    expect(message(el)).toBe(en('ui.clock.clockedIn', { time }));
+  });
+
   it('shows a spinner while the first load is in flight', async () => {
     let release: () => void = () => {};
     query.mockImplementation(() => new Promise((r) => (release = () => r([]))));
@@ -468,5 +489,52 @@ describe('erp-attendance-clock — today and recent days', () => {
       'attendance.records.mine',
       expect.objectContaining({ limit: 10, sort: 'clock_in_at', dir: 'desc' }),
     );
+  });
+
+  // 23:30 UTC on the 6th is 01:30 on the 7th in Madrid. The device clock below is in New York
+  // (still the 6th there, as in UTC): only the business zone puts the short night shift in «Today».
+  it('«Today» is the day of the business zone, not the device zone', async () => {
+    const tz = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    try {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-06T23:30:00Z'));
+      world.mine = [
+        { id: 'rec-n', user_id: 'user-ana', clock_in_at: '2026-10-06T23:00:00Z', clock_out_at: '2026-10-06T23:20:00Z', status: 'closed', local_date: '2026-10-07', break_count: 0, breaks_closed_minutes: 0 },
+        { id: 'rec-d', user_id: 'user-ana', clock_in_at: '2026-10-06T08:00:00Z', clock_out_at: '2026-10-06T16:00:00Z', status: 'closed', local_date: '2026-10-06', break_count: 0, breaks_closed_minutes: 0 },
+      ];
+      const el = await mount();
+      expect(byId(el, 'attendance-clock-today-worked')?.textContent).toContain('0:20');
+    } finally {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    }
+  });
+
+  it('«Today» moves on at midnight in the business zone while the screen stays open', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    // 21:59:58 UTC = 23:59:58 in Madrid.
+    vi.setSystemTime(new Date('2026-10-06T21:59:58Z'));
+    world.mine = [
+      { id: 'rec-1', user_id: 'user-ana', clock_in_at: '2026-10-06T06:00:00Z', clock_out_at: '2026-10-06T07:00:00Z', status: 'closed', local_date: '2026-10-06', break_count: 0, breaks_closed_minutes: 0 },
+    ];
+    const el = await mount();
+    expect(byId(el, 'attendance-clock-today-worked')?.textContent).toContain('1:00');
+    vi.advanceTimersByTime(5000);
+    await settle(el);
+    expect(byId(el, 'attendance-clock-today-worked')?.textContent).toContain('0:00');
+  });
+});
+
+describe('erp-attendance-clock — layout', () => {
+  // The screen is hosted next to the shell's side menu / split pane: at a 834 px viewport it may get
+  // ~590 px. The two columns follow the width the component actually gets, not the viewport's.
+  it('switches to two columns on its own width (container query), never on the viewport', async () => {
+    await import('./erp-attendance-clock');
+    const ctor = customElements.get('erp-attendance-clock') as unknown as { styles: { cssText: string } };
+    const cssText = ctor.styles.cssText;
+    expect(cssText).toMatch(/:host\s*{[^}]*container-type:\s*inline-size/);
+    expect(cssText).toMatch(/@container\s*\(min-width:\s*760px\)/);
+    expect(cssText).not.toMatch(/@media/);
   });
 });

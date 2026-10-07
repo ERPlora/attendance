@@ -77,7 +77,7 @@
       "recent": "Recent days",
       "empty": "No records yet",
       "noClockOut": "no clock-out",
-      "workedShort": "{duration} worked"
+      "reloadFailed": "The screen could not be refreshed: {reason}"
     },
     "records": {
     },

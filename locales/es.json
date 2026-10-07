@@ -77,7 +77,7 @@
       "recent": "Últimas jornadas",
       "empty": "Todavía no hay registros",
       "noClockOut": "sin salida",
-      "workedShort": "{duration} trabajadas"
+      "reloadFailed": "No se pudo actualizar la pantalla: {reason}"
     },
     "records": {
     },

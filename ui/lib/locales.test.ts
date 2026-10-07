@@ -68,4 +68,21 @@ describe('locales — ui.clock, ui.settings, ui.common', () => {
     const missing = [...used].filter((k) => !EN.has(k) || !ES.has(k)).sort();
     expect(missing).toEqual([]);
   });
+
+  // `ui.common` is shared with the records screen, so only the two blocks these screens own alone
+  // are held to «no dead key».
+  it('carry no ui.clock / ui.settings key that no screen uses', () => {
+    const text = [
+      ...sources(join(ROOT, 'ui', 'components', 'erp-attendance-clock')),
+      ...sources(join(ROOT, 'ui', 'components', 'erp-attendance-settings')),
+      ...sources(join(ROOT, 'ui', 'lib')),
+    ]
+      .map((file) => readFileSync(file, 'utf8'))
+      .join('\n');
+    const dead = [...EN.keys()]
+      .filter((k) => /^ui\.(clock|settings)\./.test(k))
+      .filter((k) => !text.includes(`'${k}'`))
+      .sort();
+    expect(dead).toEqual([]);
+  });
 });

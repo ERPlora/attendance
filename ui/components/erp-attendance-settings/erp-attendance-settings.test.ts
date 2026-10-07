@@ -287,3 +287,16 @@ describe('erp-attendance-settings — the missing-workplace warning', () => {
     expect(byId(el, 'attendance-settings-location-warning')).not.toBeNull();
   });
 });
+
+describe('erp-attendance-settings — layout', () => {
+  // The tab is hosted next to the shell's side menu / split pane: its breakpoints follow the width
+  // the component actually gets, not the viewport's.
+  it('switches its layout on its own width (container query), never on the viewport', async () => {
+    await import('./erp-attendance-settings');
+    const ctor = customElements.get('erp-attendance-settings') as unknown as { styles: { cssText: string } };
+    const cssText = ctor.styles.cssText;
+    expect(cssText).toMatch(/:host\s*{[^}]*container-type:\s*inline-size/);
+    expect(cssText).toMatch(/@container\s*\(/);
+    expect(cssText).not.toMatch(/@media/);
+  });
+});

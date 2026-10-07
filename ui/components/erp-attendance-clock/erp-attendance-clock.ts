@@ -119,6 +119,9 @@ export class ErpAttendanceClock extends LitElement {
       padding: 16px;
       color: var(--ion-text-color, #1c1b18);
       box-sizing: border-box;
+      /* The shell may host this screen next to a side menu or a split pane: the layout follows the
+         width the component gets, not the viewport's. */
+      container-type: inline-size;
     }
     .layout {
       display: grid;
@@ -127,7 +130,7 @@ export class ErpAttendanceClock extends LitElement {
       max-width: 1100px;
       margin: 0 auto;
     }
-    @media (min-width: 834px) {
+    @container (min-width: 760px) {
       .layout {
         grid-template-columns: minmax(320px, 5fr) minmax(0, 6fr);
         align-items: start;
@@ -161,7 +164,7 @@ export class ErpAttendanceClock extends LitElement {
       font-size: 1.05rem;
     }
     .timer {
-      font-size: clamp(2.25rem, 9vw, 3.25rem);
+      font-size: clamp(2.25rem, 9cqi, 3.25rem);
       font-weight: 700;
       font-variant-numeric: tabular-nums;
       line-height: 1.1;
@@ -203,6 +206,16 @@ export class ErpAttendanceClock extends LitElement {
       color: var(--ion-color-success-shade, #1f7a3a);
       background: color-mix(in srgb, var(--ion-color-success, #2dd36f) 12%, transparent);
     }
+    .msg.reload {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .msg.reload ion-button {
+      margin: 0;
+      flex: 0 0 auto;
+    }
     .msg.info {
       color: var(--ion-color-medium-shade, #555);
       background: color-mix(in srgb, var(--ion-color-medium, #92949c) 12%, transparent);
@@ -239,11 +252,30 @@ export class ErpAttendanceClock extends LitElement {
       padding: 0;
       background: transparent;
     }
+    /* A narrow column truncates a row; it never wraps a date or a time letter by letter. */
+    ion-item ion-label {
+      min-width: 0;
+    }
+    .day-date,
+    .day-times {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .day-date {
+      margin: 0 0 2px;
+      font-size: 1rem;
+    }
+    .day-times {
+      font-variant-numeric: tabular-nums;
+    }
     .day-end {
       display: flex;
+      flex: 0 0 auto;
       flex-direction: column;
       align-items: flex-end;
       gap: 4px;
+      white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }
     .center {
@@ -303,12 +335,15 @@ export class ErpAttendanceClock extends LitElement {
   @state() private loading = true;
   @state() private loaded = false;
   @state() private loadError = '';
+  /** A reload that failed once the screen was on: told as a notice, the screen stays. */
+  @state() private reloadError = '';
   @state() private settings: Settings = { ...DEFAULT_SETTINGS };
   @state() private mode: DeviceMode = 'shared';
   @state() private open: OpenDay | null = null;
   @state() private recent: Day[] = [];
-  @state() private todayDays: Day[] = [];
-  @state() private todayBreaks: Break[] = [];
+  /** The caller's days and breaks of the last 48 h; «today» is picked from them on every render. */
+  @state() private windowDays: Day[] = [];
+  @state() private windowBreaks: Break[] = [];
   @state() private busy: Busy = '';
   @state() private notice: Notice = null;
   @state() private distance: number | null = null;
@@ -340,7 +375,11 @@ export class ErpAttendanceClock extends LitElement {
     this.ticker = undefined;
   }
 
-  /** Everything the screen shows, in parallel. Only the FIRST load paints the spinner. */
+  /**
+   * Everything the screen shows, in parallel. Only the FIRST load paints the spinner and only a
+   * failed FIRST load takes the whole screen: once loaded, a failed reload (typically right after a
+   * command that did go through) keeps the screen and its message and is told as a notice.
+   */
   private async load(): Promise<void> {
     this.loading = true;
     this.loadError = '';
@@ -368,14 +407,15 @@ export class ErpAttendanceClock extends LitElement {
       this.open = (Array.isArray(openRows) ? openRows[0] : null) ?? null;
       this.mode = mode;
       this.recent = rowsOf(recentPage).slice(0, RECENT_DAYS);
-      const today = localDateOf(new Date().toISOString(), this.timezone);
-      this.todayDays = (todayRows ?? []).filter((d) => d.local_date === today);
-      const ids = new Set(this.todayDays.map((d) => d.id));
-      this.todayBreaks = (breakRows ?? []).filter((b) => ids.has(b.record_id));
+      this.windowDays = todayRows ?? [];
+      this.windowBreaks = breakRows ?? [];
       this.now = Date.now();
       this.loaded = true;
+      this.reloadError = '';
     } catch (e) {
-      this.loadError = errorMessage(CATALOG, this.locale, e, this.t('ui.common.loadError'));
+      const text = errorMessage(CATALOG, this.locale, e, this.t('ui.common.loadError'));
+      if (this.loaded) this.reloadError = text;
+      else this.loadError = text;
     } finally {
       this.loading = false;
     }
@@ -508,14 +548,19 @@ export class ErpAttendanceClock extends LitElement {
     return minutesBetween(b.started_at, b.ended_at ?? nowIso);
   }
 
-  /** Today's worked time (net of breaks) and breaks, live while a day or a break is running. */
+  /**
+   * Today's worked time (net of breaks) and breaks, live while a day or a break is running. «Today»
+   * is the business-zone date of the ticking `now`, so it moves on at local midnight by itself.
+   */
   private todayTotals(): { worked: number; breaks: number } {
     const nowIso = new Date(this.now).toISOString();
+    const today = localDateOf(nowIso, this.timezone);
     let worked = 0;
     let breaks = 0;
-    for (const day of this.todayDays) {
+    for (const day of this.windowDays) {
+      if (day.local_date !== today) continue;
       const end = day.clock_out_at ?? (day.status === 'open' ? nowIso : null);
-      const own = this.todayBreaks
+      const own = this.windowBreaks
         .filter((b) => b.record_id === day.id)
         .reduce((sum, b) => sum + this.breakMinutes(b, nowIso), 0);
       breaks += own;
@@ -544,8 +589,8 @@ export class ErpAttendanceClock extends LitElement {
       : '';
     return html`<ion-item lines="full">
       <ion-label>
-        <h3>${formatLocalDate(day.local_date, locale)}</h3>
-        <p>${inAt} – ${outAt}</p>
+        <h3 class="day-date">${formatLocalDate(day.local_date, locale)}</h3>
+        <p class="day-times">${inAt} – ${outAt}</p>
       </ion-label>
       <div class="day-end" slot="end">
         ${duration ? html`<span>${duration}</span>` : nothing} ${this.renderStatusBadge(day.status)}
@@ -560,6 +605,17 @@ export class ErpAttendanceClock extends LitElement {
       role=${this.notice.kind === 'error' ? 'alert' : 'status'}
       data-testid="attendance-clock-message"
     >${this.notice.text}</p>`;
+  }
+
+  private renderReloadError() {
+    if (!this.reloadError) return nothing;
+    return html`<div class="msg error reload" role="alert" data-testid="attendance-clock-reload-error">
+      <span>${this.t('ui.clock.reloadFailed', { reason: this.reloadError })}</span>
+      <ion-button size="small" fill="clear" data-testid="attendance-clock-reload-retry"
+        ?disabled=${this.loading} @click=${() => this.load()}>
+        <ion-icon slot="start" name="refresh-outline"></ion-icon>${this.t('ui.common.retry')}
+      </ion-button>
+    </div>`;
   }
 
   private renderClock() {
@@ -623,7 +679,7 @@ export class ErpAttendanceClock extends LitElement {
             ${this.t('ui.clock.distance', { distance: this.distance })}
           </p>`
         : nothing}
-      ${this.renderNotice()}
+      ${this.renderNotice()} ${this.renderReloadError()}
     </section>`;
   }
 

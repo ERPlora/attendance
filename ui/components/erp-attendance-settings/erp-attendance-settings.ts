@@ -64,6 +64,8 @@ export class ErpAttendanceSettings extends LitElement {
       padding: 16px;
       color: var(--ion-text-color, #1c1b18);
       box-sizing: border-box;
+      /* Hosted next to the shell's side menu / split pane: breakpoints follow the component's width. */
+      container-type: inline-size;
     }
     .card {
       max-width: 720px;
@@ -105,7 +107,7 @@ export class ErpAttendanceSettings extends LitElement {
       gap: 12px;
       grid-template-columns: minmax(0, 1fr);
     }
-    @media (min-width: 600px) {
+    @container (min-width: 600px) {
       .pair {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       }
@@ -159,7 +161,7 @@ export class ErpAttendanceSettings extends LitElement {
       margin: 0;
       min-width: 140px;
     }
-    @media (max-width: 599px) {
+    @container (max-width: 599px) {
       .actions ion-button {
         width: 100%;
       }
