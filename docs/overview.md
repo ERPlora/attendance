@@ -25,7 +25,8 @@ everybody's records, correct mistakes with a mandatory reason, and export the mo
 ## What it does not do
 
 - It does not compute pay, overtime or hours against a contract (see `limits.md`).
-- It does not manage shifts or rotas — that is the `schedules` module.
+- It does not manage shifts or rotas: a professional's shifts belong to the `staff` module
+  (`schedules` holds the business opening hours).
 
 ## Relation with Hub users and `staff`
 
