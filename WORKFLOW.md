@@ -233,7 +233,7 @@ Si falla: la pantalla no envía y lo dice si la salida no es posterior a la entr
 tiene que ser posterior a la entrada.»), si las horas pisan otra jornada de la misma persona
 («Estas horas se solapan con otra jornada de esta persona.») o si falta el motivo. Reabrir una
 jornada cuando esa persona ya tiene otra abierta lo rechaza el hub con «No se ha podido corregir la
-jornada…». Sin el permiso de ver el equipo no aparece «Corregir».
+jornada…». «Corregir» solo aparece a quien puede ver el equipo y además corregir jornadas.
 Implicados: ninguno
 QA: attendance/corregir-una-jornada
 
@@ -374,7 +374,7 @@ personal, la posición al fichar (nunca durante la jornada). La relación con Pe
 - El rótulo del mismo estado no coincide entre pantallas: «En curso» / «Para revisar» en Fichar y
   «Abierta» / «Por revisar» en Registros (attendance#18).
 - El `WORKFLOW.md` de Personal pone «Fichaje, horas trabajadas y horas extra — fuera del MVP»: el
-  fichaje ya existe aquí; esa fila tiene que enlazar a este módulo.
+  fichaje ya existe aquí; esa fila tiene que enlazar a este módulo (staff#113).
 
 ## Fuentes contrastadas
 - `docs/overview.md` decía que los turnos son del módulo `schedules`; `schedules` es el horario de
